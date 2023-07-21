@@ -185,6 +185,7 @@ tflm_kernel_cc_library(
         "add_n.cc",
         "arg_min_max.cc",
         "assign_variable.cc",
+        "batch_matmul.cc",
         "batch_to_space_nd.cc",
         "broadcast_args.cc",
         "broadcast_to.cc",
