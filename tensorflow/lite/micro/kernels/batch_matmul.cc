@@ -279,7 +279,7 @@ TfLiteStatus InitializeTemporaries(TfLiteContext* context, TfLiteNode* node,
     const int batch_size = op_context.params->adj_x
                                ? lhs->dims->data[lhs_rank - 1]
                                : lhs->dims->data[lhs_rank - 2];
-    const int num_units = op_context->params->adj_y
+    const int num_units = op_context.params->adj_y
                               ? rhs->dims->data[rhs_rank - 2]
                               : rhs->dims->data[rhs_rank - 1];
 
@@ -358,7 +358,7 @@ TfLiteStatus TransposeRowsColumns(TfLiteContext* context,
         tensor_in, tflite::micro::GetTensorData<int8_t>(&tensor_in), tensor_out,
         tflite::micro::GetTensorData<int8_t>(tensor_out));
     return kTfLiteOk;
-  } else if (tensor_in->type == kTfLiteInt16) {
+  } else if (tensor_in.type == kTfLiteInt16) {
     TransposeRowsColumnsImpl<int16_t>(
         tensor_in, tflite::micro::GetTensorData<int16_t>(&tensor_in),
         tensor_out, tflite::micro::GetTensorData<int16_t>(tensor_out));
@@ -367,8 +367,8 @@ TfLiteStatus TransposeRowsColumns(TfLiteContext* context,
     MicroPrintf(
         "BATCH_MATMUL can only transpose tensors with FLOAT32, INT8, INT16 "
         "type.");
-    return kTfLiteError;
   }
+  return kTfLiteError;
 }
 
 RuntimeShape SwapRowColumnDims(const RuntimeShape& shape) {
@@ -635,7 +635,7 @@ TfLiteStatus EvalQuantized(TfLiteContext* context, TfLiteNode* node,
     TF_LITE_ENSURE(context, data.quantization != nullptr);
     return EvalInt8(context, data, lhs_shape, lhs, rhs_shape, rhs,
                     tflite::micro::GetTensorShape(output), output);
-  } else if (lhs->type == kTfLiteInt16 && rhs->type == kTfLiteInt16) {
+  } else if (lhs.type == kTfLiteInt16 && rhs.type == kTfLiteInt16) {
     TF_LITE_ENSURE(context, data.quantization != nullptr);
     return EvalInt16(context, data, lhs_shape, lhs, rhs_shape, rhs,
                      tflite::micro::GetTensorShape(output), output);
