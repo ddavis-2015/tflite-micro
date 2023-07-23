@@ -141,6 +141,8 @@ TfLiteStatus ReshapeOutputTensor(TfLiteContext* context, TfLiteNode* node,
                                  const RuntimeShape& extended_rhs_shape,
                                  bool adj_x, bool adj_y, int output_rank,
                                  TfLiteTensor* output) {
+  MicroPrintf("BatchMatMul::ReshapeOutputTensor");
+
   int64_t orig_size = NumElements(output);
 
   // make sure the new output dims rank does not exceed the original rank
@@ -219,6 +221,8 @@ TfLiteEvalTensor* AllocInitTransposeTensorFromTfLiteTensor(
 // Allocate normal quantization data if needed.
 TfLiteStatus InitializeTemporaries(TfLiteContext* context, TfLiteNode* node,
                                    const PrepareOpContext& op_context) {
+  MicroPrintf("BatchMatMul::InitializeTemporaries");
+
   OpData* op_data = op_context.opdata;
   const TfLiteTensor* lhs = op_context.lhs;
   const TfLiteTensor* rhs = op_context.rhs;
@@ -230,6 +234,8 @@ TfLiteStatus InitializeTemporaries(TfLiteContext* context, TfLiteNode* node,
   const bool is_hybrid =
       (lhs->type == kTfLiteFloat32 && rhs->type == kTfLiteInt8);
   if (is_hybrid) {
+    MicroPrintf("BatchMatMul::InitializeTemporaries: is_hybrid");
+
     op_data->hybrid = static_cast<decltype(op_data->hybrid)>(
         micro_context->AllocatePersistentBuffer(sizeof(*op_data->hybrid)));
     TF_LITE_ENSURE(context, op_data->hybrid != nullptr);
@@ -238,11 +244,15 @@ TfLiteStatus InitializeTemporaries(TfLiteContext* context, TfLiteNode* node,
     op_data->hybrid->row_sums_buffer = nullptr;
     op_data->hybrid->input_offsets_index = kInvalidScratchBufferIndex;
   } else if (lhs->type == kTfLiteInt8 || lhs->type == kTfLiteInt16) {
+    MicroPrintf("BatchMatMul::InitializeTemporaries: quantized");
+
     op_data->quantization = static_cast<decltype(op_data->quantization)>(
         micro_context->AllocatePersistentBuffer(
             sizeof(*op_data->quantization)));
     TF_LITE_ENSURE(context, op_data->quantization != nullptr);
   } else {
+    MicroPrintf("BatchMatMul::InitializeTemporaries: float");
+
     op_data->quantization = nullptr;  // also op_data->hybrid
   }
 
@@ -274,6 +284,8 @@ TfLiteStatus InitializeTemporaries(TfLiteContext* context, TfLiteNode* node,
   // rows for each weights matrix.
   // RHS = weights, LHS = inputs
   if (is_hybrid) {
+    MicroPrintf("BatchMatMul::InitializeTemporaries: is_hybrid");
+
     const int lhs_rank = NumDimensions(lhs);
     const int rhs_rank = NumDimensions(rhs);
     const int batch_size = op_context.params->adj_x
@@ -380,6 +392,7 @@ RuntimeShape SwapRowColumnDims(const RuntimeShape& shape) {
 }
 
 TfLiteStatus CalculateOpData(TfLiteContext* context, TfLiteNode* node) {
+  MicroPrintf("BatchMatMul::CalculateOpData");
   TF_LITE_ENSURE_EQ(context, NumInputs(node), 2);
   TF_LITE_ENSURE_EQ(context, NumOutputs(node), 1);
 
@@ -421,12 +434,11 @@ TfLiteStatus CalculateOpData(TfLiteContext* context, TfLiteNode* node) {
   op_data->lhs_is_constant_tensor = IsConstantTensor(lhs_data);
   op_data->rhs_is_constant_tensor = IsConstantTensor(rhs_data);
 
-  bool adj_x = op_context.params->adj_x;
-  bool adj_y = op_context.params->adj_y;
-
   // Note that quantized inference requires that all tensors have their
   // parameters set. This is usually done during quantized training.
   if (lhs_data->type == kTfLiteInt8 || lhs_data->type == kTfLiteInt16) {
+    MicroPrintf("BatchMatMul::CalculateOpData: quantized");
+
     TF_LITE_ENSURE(context, op_data->quantization != nullptr);
     double real_multiplier = 0.0;
     TF_LITE_ENSURE_STATUS(GetQuantizedConvolutionMultipler(
@@ -473,6 +485,8 @@ TfLiteStatus CalculateOpData(TfLiteContext* context, TfLiteNode* node) {
       }
     }
   }
+  bool adj_x = op_context.params->adj_x;
+  bool adj_y = op_context.params->adj_y;
   // Ensure other dimensions work for matrix multiplication.
   int accum_dim_lhs = adj_x ? extended_lhs_shape.Dims(output_rank - 2)
                             : extended_lhs_shape.Dims(output_rank - 1);
@@ -658,6 +672,7 @@ TfLiteStatus EvalQuantized(TfLiteContext* context, TfLiteNode* node,
 // where output is a C X A column-oriented, which is equivalent to
 // A X C row-oriented.
 TfLiteStatus Eval(TfLiteContext* context, TfLiteNode* node) {
+  MicroPrintf("BatchMatMul::Eval");
   EvalOpContext op_context(context, node);
   OpData* op_data = op_context.opdata;
   const TfLiteEvalTensor* lhs = op_context.lhs;
@@ -691,6 +706,7 @@ TfLiteStatus Eval(TfLiteContext* context, TfLiteNode* node) {
       orig_rhs_shape.ReplaceWith(tmp_r.DimensionsCount(), tmp_r.DimsData());
       rhs_dims_count = orig_rhs_shape.DimensionsCount();
       lhs_dims_count = orig_lhs_shape.DimensionsCount();
+      MicroPrintf("compressed LHS/RHS shape");
     }
   }
 
@@ -706,10 +722,12 @@ TfLiteStatus Eval(TfLiteContext* context, TfLiteNode* node) {
     if (!(op_data->rhs_is_constant_tensor && op_data->rhs_is_transposed)) {
       TransposeRowsColumns(context, *rhs, rhs_tensor);
       op_data->rhs_is_transposed = true;
+      MicroPrintf("RHS transposed");
     }
   }
   if (adj_x) {
     TransposeRowsColumns(context, *lhs, lhs_tensor);
+    MicroPrintf("LHS transposed");
   }
   RuntimeShape rhs_shape =
       adj_y ? orig_rhs_shape : SwapRowColumnDims(orig_rhs_shape);
@@ -724,6 +742,7 @@ TfLiteStatus Eval(TfLiteContext* context, TfLiteNode* node) {
           tflite::micro::GetTensorData<float>(lhs_tensor),
           tflite::micro::GetTensorShape(output),
           tflite::micro::GetTensorData<float>(output));
+      MicroPrintf("reference_ops::BatchMatMul");
       break;
     case kTfLiteInt8:
     // [[fallthrough]]

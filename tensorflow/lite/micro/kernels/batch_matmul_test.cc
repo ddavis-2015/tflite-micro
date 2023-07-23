@@ -57,10 +57,11 @@ micro::KernelRunner* GetKernelRunnerInstance(
   static int kOutputArrayData[] = {kNumOutputs, kOutputTensorIndex};
   TfLiteIntArray* outputs_array = IntArrayFromInts(kOutputArrayData);
 
-  const TFLMRegistration registration = tflite::Register_BATCH_MATMUL();
+  static const TFLMRegistration registration = tflite::Register_BATCH_MATMUL();
 
   alignas(micro::KernelRunner) static char
-      kernel_runner_buffer[sizeof(micro::KernelRunner)];
+      kernel_runner_buffer[sizeof(micro::KernelRunner)] = {};
+  MicroPrintf("kernel_runner_buffer = %p", kernel_runner_buffer);
 
   static micro::KernelRunner* runner = nullptr;
   if (runner == nullptr || need_init_prepare) {
@@ -144,8 +145,11 @@ void TestBatchMatMulFloat(const TfLiteBatchMatMulParams& params,
   constexpr int tensors_count = std::extent<decltype(tensors)>::value;
   micro::KernelRunner* runner = GetKernelRunnerInstance(
       tensors, tensors_count, params, need_init_prepare);
+  MicroPrintf("invoke result before: %d, runner = %p",
+              micro_test::did_test_fail, runner);
   TF_LITE_MICRO_EXPECT_EQ(kTfLiteOk, runner->Invoke());
-  MicroPrintf("invoke result: %d", micro_test::did_test_fail);
+  MicroPrintf("invoke result after: %d, runner = %p", micro_test::did_test_fail,
+              runner);
 
   // check output data against expected
   for (int i = 0; i < output_count; i++) {
@@ -197,6 +201,40 @@ TF_LITE_MICRO_TEST(BatchMatMulOpTestFloat32Test_Ones) {
                                         output_data);
 }
 
+TF_LITE_MICRO_TEST(ConstRHSBatchMatMulOpModelRHSNotAdjoint) {
+  int kInputDims_LHS[] = {3, 1, 6, 2};
+  int kInputDims_RHS[] = {2, 2, 3};
+  int* kInputDims[tflite::testing::kNumInputs] = {kInputDims_LHS,
+                                                  kInputDims_RHS};
+
+  constexpr size_t kInputSize_LHS = 24;
+  constexpr float kInput_LHS[kInputSize_LHS] = {6, 3, 7, 4, 6, 9,
+                                                2, 6, 7, 4, 3, 7};
+
+  constexpr size_t kInputSize_RHS = 12;
+  constexpr float kInput_RHS[kInputSize_RHS] = {6, 3, 7, 4, 6, 9};
+
+  constexpr float kExpect[] = {48, 36, 69, 58, 45, 85, 72, 72, 123,
+                               36, 42, 68, 58, 45, 85, 46, 51, 84};
+  int kOutputDims[] = {3, 1, 6, 3};
+  constexpr int kOutputCount = std::extent<decltype(kExpect)>::value;
+  float output_data[kOutputCount];
+
+  constexpr TfLiteBatchMatMulParams params = {
+      false,  // adj_x
+      false,  // adj_y
+      false   // asymmetric_quantize_inputs
+  };
+
+  tflite::testing::TestBatchMatMulFloat(params, kInputDims, kInput_LHS,
+                                        kInput_RHS, kOutputDims, kExpect,
+                                        output_data, true);
+  // Eval twice to make sure constant transposed RHS is persistent.
+  tflite::testing::TestBatchMatMulFloat(params, kInputDims, kInput_LHS,
+                                        kInput_RHS, kOutputDims, kExpect,
+                                        output_data, true, false);
+}
+
 #ifdef notdef
 TF_LITE_MICRO_TEST(HybridEmbeddingLookupHybridOpTestSimple2DTestInt8) {
   int kInputDims_0[] = {1, 3};
@@ -230,94 +268,6 @@ TF_LITE_MICRO_TEST(HybridEmbeddingLookupHybridOpTestSimple2DTestInt8) {
       kExpect, output_data);
 }
 
-TF_LITE_MICRO_TEST(HybridEmbeddingLookupHybridOpTestSimple3DTestInt8) {
-  int kInputDims_0[] = {1, 3};
-  int kInputDims_1[] = {3, 3, 2, 4};
-  int* kInputDims[tflite::testing::kNumInputs] = {kInputDims_0, kInputDims_1};
-  int kOutputDims[] = {3, 3, 2, 4};
-
-  constexpr int32_t kInput_LHS[kInputSize_LHS] = {1, 0, 2};
-  constexpr float kInput_RHS[] = {
-      0.00, 0.01,  0.02, 0.03, 0.10, 0.11, 0.12, 0.13,  // Row 0
-      1.00, -1.01, 1.02, 1.03, 1.10, 1.11, 1.12, 1.13,  // Row 1
-      2.00, 2.01,  2.02, 2.03, 2.10, 2.11, 2.12, 2.13,  // Row 2
-  };
-  constexpr int kInputCount_1 = std::extent<decltype(kInput_RHS)>::value;
-  constexpr float kExpect[] = {
-      1.00, -1.01, 1.02, 1.03, 1.10, 1.11, 1.12, 1.13,  // Row 1
-      0.00, 0.01,  0.02, 0.03, 0.10, 0.11, 0.12, 0.13,  // Row 0
-      2.00, 2.01,  2.02, 2.03, 2.10, 2.11, 2.12, 2.13,  // Row 2
-  };
-  constexpr int kOutputCount = std::extent<decltype(kExpect)>::value;
-  float output_data[kOutputCount];
-
-  tflite::testing::TestBatchMatMulParams<kInputCount_1> params = {};
-  auto minmax =
-      std::minmax_element(std::begin(kInput_RHS), std::end(kInput_RHS));
-  params.data_max = *minmax.second;
-  params.data_min = *minmax.first;
-
-  tflite::testing::TestEmbeddingLookupQuantized(
-      params, kInputDims, kInput_LHS, kInputSize_LHS kInput_RHS, kOutputDims,
-      kExpect, output_data);
-}
-
-TF_LITE_MICRO_TEST(HybridEmbeddingLookupHybridOpTestSimple4DTestInt8) {
-  int kInputDims_0[] = {1, 3};
-  int kInputDims_1[] = {4, 3, 2, 2, 2};
-  int* kInputDims[tflite::testing::kNumInputs] = {kInputDims_0, kInputDims_1};
-  int kOutputDims[] = {4, 3, 2, 2, 2};
-
-  constexpr int32_t kInput_LHS[kInputSize_LHS] = {1, 0, 2};
-  constexpr float kInput_RHS[] = {
-      0.00, 0.01,  0.02, 0.03, 0.10, 0.11, 0.12, 0.13,  // Row 0
-      1.00, -1.01, 1.02, 1.03, 1.10, 1.11, 1.12, 1.13,  // Row 1
-      2.00, 2.01,  2.02, 2.03, 2.10, 2.11, 2.12, 2.13,  // Row 2
-  };
-  constexpr int kInputCount_1 = std::extent<decltype(kInput_RHS)>::value;
-  constexpr float kExpect[] = {
-      1.00, -1.01, 1.02, 1.03, 1.10, 1.11, 1.12, 1.13,  // Row 1
-      0.00, 0.01,  0.02, 0.03, 0.10, 0.11, 0.12, 0.13,  // Row 0
-      2.00, 2.01,  2.02, 2.03, 2.10, 2.11, 2.12, 2.13,  // Row 2
-  };
-  constexpr int kOutputCount = std::extent<decltype(kExpect)>::value;
-  float output_data[kOutputCount];
-
-  tflite::testing::TestBatchMatMulParams<kInputCount_1> params = {};
-  auto minmax =
-      std::minmax_element(std::begin(kInput_RHS), std::end(kInput_RHS));
-  params.data_max = *minmax.second;
-  params.data_min = *minmax.first;
-
-  tflite::testing::TestEmbeddingLookupQuantized(
-      params, kInputDims, kInput_LHS, kInputSize_LHS kInput_RHS, kOutputDims,
-      kExpect, output_data);
-}
-
-TF_LITE_MICRO_TEST(EmbeddingLookupOpTestSimpleInt8) {
-  int kInputDims_0[] = {1, 3};
-  int kInputDims_1[] = {3, 3, 2, 4};
-  int* kInputDims[tflite::testing::kNumInputs] = {kInputDims_0, kInputDims_1};
-  int kOutputDims[] = {3, 3, 2, 4};
-
-  constexpr int32_t kInput_LHS[kInputSize_LHS] = {1, 0, 2};
-  constexpr int8_t kInput_RHS[] = {
-      0,   1,   2,   3,   10,  11,  12,  13,   // Row 0
-      100, 101, 102, 103, 110, 111, 112, 113,  // Row 1
-      -56, -55, -54, -53, -46, -45, -44, -43,  // Row 2
-  };
-  constexpr int8_t kExpect[] = {
-      100, 101, 102, 103, 110, 111, 112, 113,  // Row 1
-      0,   1,   2,   3,   10,  11,  12,  13,   // Row 0
-      -56, -55, -54, -53, -46, -45, -44, -43,  // Row 2
-  };
-  constexpr int kOutputCount = std::extent<decltype(kExpect)>::value;
-  int8_t output_data[kOutputCount];
-
-  tflite::testing::TestEmbeddingLookup(kInputDims, kInput_LHS,
-                                       kInputSize_LHS kInput_RHS, kOutputDims,
-                                       kExpect, output_data);
-}
 #endif  // notdef
 
 TF_LITE_MICRO_TESTS_END
