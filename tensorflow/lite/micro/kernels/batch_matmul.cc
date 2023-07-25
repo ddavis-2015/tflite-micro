@@ -532,7 +532,7 @@ TfLiteStatus EvalHybrid(TfLiteContext* context, TfLiteNode* node,
   for (int i = 0; i < input_shape.DimensionsCount() - 2; ++i) {
     num_batches_to_quantize *= input_shape.Dims(i);
   }
-  // Quantize input from float to uint8 + quantization params (scaling factor).
+  // Quantize input from float to int8 + quantization params (scaling factor).
   TF_LITE_ENSURE(context,
                  data.hybrid->scaling_factors_size >= num_batches_to_quantize);
   float* scaling_factors_ptr = static_cast<float*>(
