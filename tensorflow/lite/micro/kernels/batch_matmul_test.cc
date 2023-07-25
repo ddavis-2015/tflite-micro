@@ -28,25 +28,29 @@ namespace tflite {
 namespace testing {
 namespace {
 
-constexpr float kTestTolerance = 1e-5;
+constexpr float kFloatTolerance = 1e-5;
+constexpr float kHybridAsymmetricTolerance = 0.64f;
+
 constexpr int kNumInputs = 2;
 constexpr int kNumOutputs = 1;
 constexpr int kInputTensorIndex_LHS = 0;
 constexpr int kInputTensorIndex_RHS = 1;
 constexpr int kOutputTensorIndex = 2;
 
-// min/max are used to compute symmetric scale, zero-point is 0
-// scale should be 0 to use min/max
+// data_min/data_max are used to compute symmetric scale, zero-point is 0
+// scale should be 0 to use data_min/data_max
 template <typename T, size_t kInputSize>
 struct TestQuantizationParams {
   // quantization parameters
   float scale;  // if 0, use data_min and data_max
-  int32_t zero_point;
+  int zero_point;
   float data_min;  // input data minimum value
   float data_max;  // input data maximum value
 
-  T input_data[kInputSize];  // quantized input storage
+  T quantized_data[kInputSize];  // quantized input storage
 };
+
+constexpr float kDefaultHybridScale = 10.0 / 127.0;
 
 micro::KernelRunner* GetKernelRunnerInstance(
     TfLiteTensor* tensors, int tensors_count,
@@ -104,7 +108,8 @@ void TestBatchMatMulQuantized(TestBatchMatMulParams<T, N>& params,
 
   // check output data against expected
   for (int i = 0; i < output_count; i++) {
-    TF_LITE_MICRO_EXPECT_NEAR(expected_data[i], output_data[i], kTestTolerance);
+    TF_LITE_MICRO_EXPECT_NEAR(expected_data[i], output_data[i],
+                              kFloatTolerance);
   }
 
   // check output dimensions (relocated) against original dimensions
@@ -153,7 +158,52 @@ void TestBatchMatMulFloat(const TfLiteBatchMatMulParams& params,
 
   // check output data against expected
   for (int i = 0; i < output_count; i++) {
-    TF_LITE_MICRO_EXPECT_NEAR(expected_data[i], output_data[i], kTestTolerance);
+    TF_LITE_MICRO_EXPECT_NEAR(expected_data[i], output_data[i],
+                              kFloatTolerance);
+  }
+
+  // check output dimensions (relocated) against original dimensions
+  TF_LITE_MICRO_EXPECT_EQ(output_dims->size,
+                          tensors[kOutputTensorIndex].dims->size);
+  for (int i = 0; i < output_dims->size; i++) {
+    TF_LITE_MICRO_EXPECT_EQ(output_dims->data[i],
+                            tensors[kOutputTensorIndex].dims->data[i]);
+  }
+}
+
+template <size_t N>
+void TestBatchMatMulHybrid(const TfLiteBatchMatMulParams& params,
+                           TestQuantizationParams<int8_t, N>* quantization_rhs,
+                           int* input_dims_data[kNumInputs],
+                           const float* input_data_lhs,
+                           const float* input_data_rhs, int* expected_dims,
+                           const float* expected_data, float* output_data,
+                           const float tolerance) {
+  TfLiteIntArray* input_dims_lhs = IntArrayFromInts(input_dims_data[0]);
+  TfLiteIntArray* input_dims_rhs = IntArrayFromInts(input_dims_data[1]);
+  TfLiteIntArray* output_dims = IntArrayFromInts(expected_dims);
+  const int output_count = ElementCount(*output_dims);
+
+  static TfLiteTensor tensors[kNumInputs + kNumOutputs];
+
+  tensors[kInputTensorIndex_LHS] = CreateTensor(input_data_lhs, input_dims_lhs);
+  tensors[kInputTensorIndex_RHS] =
+      CreateQuantizedTensor(input_data_rhs, quantization_rhs->quantized_data,
+                            input_dims_rhs, quantization_rhs->scale, 0);
+  tensors[kOutputTensorIndex] = CreateTensor(output_data, output_dims);
+
+  constexpr int tensors_count = std::extent<decltype(tensors)>::value;
+  micro::KernelRunner* runner =
+      GetKernelRunnerInstance(tensors, tensors_count, params, true);
+  MicroPrintf("invoke result before: %d, runner = %p",
+              micro_test::did_test_fail, runner);
+  TF_LITE_MICRO_EXPECT_EQ(kTfLiteOk, runner->Invoke());
+  MicroPrintf("invoke result after: %d, runner = %p", micro_test::did_test_fail,
+              runner);
+
+  // check output data against expected
+  for (int i = 0; i < output_count; i++) {
+    TF_LITE_MICRO_EXPECT_NEAR(expected_data[i], output_data[i], tolerance);
   }
 
   // check output dimensions (relocated) against original dimensions
@@ -608,6 +658,44 @@ TF_LITE_MICRO_TEST(ConstRHSBatchMatMulOpModelRHSNotAdjoint) {
   tflite::testing::TestBatchMatMulFloat(params, kInputDims, kInput_LHS,
                                         kInput_RHS, kOutputDims, kExpect,
                                         output_data, true, false);
+}
+
+TF_LITE_MICRO_TEST(HybridAsymmetricBatchMatMulOpTestSimpleTestQuantizedInt8) {
+  int kInputDims_LHS[] = {2, 2, 10};
+  int kInputDims_RHS[] = {2, 10, 3};
+  int* kInputDims[tflite::testing::kNumInputs] = {kInputDims_LHS,
+                                                  kInputDims_RHS};
+
+  constexpr float kInput_LHS[] = {
+      11, 12, 13, 14, 15, 16, 17, 18,  -19, -20,  // batch 1, 0
+      11, 12, 13, 14, 15, 16, 17, -18, 19,  -20,  // batch 1, 1
+  };
+
+  constexpr float kInput_RHS[] = {
+      1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5,  5,  5,
+      6, 6, 6, 7, 7, 7, 8, 8, 8, 9, 9, 9, 10, 10, 10,
+  };
+
+  constexpr float kExpect[] = {
+      196, 196, 196, 246, 246, 246,
+  };
+  int kOutputDims[] = {2, 2, 3};
+  constexpr int kOutputCount = std::extent<decltype(kExpect)>::value;
+  float output_data[kOutputCount];
+
+  constexpr TfLiteBatchMatMulParams params = {
+      false,  // adj_x
+      false,  // adj_y
+      true    // asymmetric_quantize_inputs
+  };
+
+  tflite::testing::TestQuantizationParams<int8_t, kOutputCount>
+      quantization_params = {tflite::testing::kDefaultHybridScale};
+
+  tflite::testing::TestBatchMatMulHybrid(
+      params, &quantization_params, kInputDims, kInput_LHS, kInput_RHS,
+      kOutputDims, kExpect, output_data,
+      tflite::testing::kHybridAsymmetricTolerance);
 }
 
 #ifdef notdef
