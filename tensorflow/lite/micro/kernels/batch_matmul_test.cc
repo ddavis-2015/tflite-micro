@@ -698,39 +698,170 @@ TF_LITE_MICRO_TEST(HybridAsymmetricBatchMatMulOpTestSimpleTestQuantizedInt8) {
       tflite::testing::kHybridAsymmetricTolerance);
 }
 
-#ifdef notdef
-TF_LITE_MICRO_TEST(HybridEmbeddingLookupHybridOpTestSimple2DTestInt8) {
-  int kInputDims_0[] = {1, 3};
-  int kInputDims_1[] = {2, 3, 8};
-  int* kInputDims[tflite::testing::kNumInputs] = {kInputDims_0, kInputDims_1};
-  int kOutputDims[] = {2, 3, 8};
+TF_LITE_MICRO_TEST(HybridSymmetricBatchMatMulOpTestSimpleTestQuantizedInt8) {
+  int kInputDims_LHS[] = {2, 2, 10};
+  int kInputDims_RHS[] = {2, 10, 3};
+  int* kInputDims[tflite::testing::kNumInputs] = {kInputDims_LHS,
+                                                  kInputDims_RHS};
 
-  constexpr int32_t kInput_LHS[kInputSize_LHS] = {1, 0, 2};
+  constexpr float kInput_LHS[] = {
+      11, 12, 13, 14, 15, 16, 17, 18,  -19, -20,  // batch 1, 0
+      11, 12, 13, 14, 15, 16, 17, -18, 19,  -20,  // batch 1, 1
+  };
+
   constexpr float kInput_RHS[] = {
-      0.00, 0.01,  0.02, 0.03, 0.10, 0.11, 0.12, 0.13,  // Row 0
-      1.00, -1.01, 1.02, 1.03, 1.10, 1.11, 1.12, 1.13,  // Row 1
-      2.00, 2.01,  2.02, 2.03, 2.10, 2.11, 2.12, 2.13,  // Row 2
+      1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5,  5,  5,
+      6, 6, 6, 7, 7, 7, 8, 8, 8, 9, 9, 9, 10, 10, 10,
   };
-  constexpr int kInputCount_1 = std::extent<decltype(kInput_RHS)>::value;
+
   constexpr float kExpect[] = {
-      1.00, -1.01, 1.02, 1.03, 1.10, 1.11, 1.12, 1.13,  // Row 1
-      0.00, 0.01,  0.02, 0.03, 0.10, 0.11, 0.12, 0.13,  // Row 0
-      2.00, 2.01,  2.02, 2.03, 2.10, 2.11, 2.12, 2.13,  // Row 2
+      194, 194, 194, 248, 248, 248,
   };
+  int kOutputDims[] = {2, 2, 3};
   constexpr int kOutputCount = std::extent<decltype(kExpect)>::value;
   float output_data[kOutputCount];
 
-  tflite::testing::TestBatchMatMulParams<kInputCount_1> params = {};
-  auto minmax =
-      std::minmax_element(std::begin(kInput_RHS), std::end(kInput_RHS));
-  params.data_max = *minmax.second;
-  params.data_min = *minmax.first;
+  constexpr TfLiteBatchMatMulParams params = {
+      false,  // adj_x
+      false,  // adj_y
+      false   // asymmetric_quantize_inputs
+  };
 
-  tflite::testing::TestEmbeddingLookupQuantized(
-      params, kInputDims, kInput_LHS, kInputSize_LHS kInput_RHS, kOutputDims,
-      kExpect, output_data);
+  tflite::testing::TestQuantizationParams<int8_t, kOutputCount>
+      quantization_params = {tflite::testing::kDefaultHybridScale};
+
+  tflite::testing::TestBatchMatMulHybrid(
+      params, &quantization_params, kInputDims, kInput_LHS, kInput_RHS,
+      kOutputDims, kExpect, output_data,
+      tflite::testing::kHybridAsymmetricTolerance);
 }
 
-#endif  // notdef
+#ifdef notyet
+TF_LITE_MICRO_TEST(
+    HybridSymmetricBatchMatMulOpTestQuantizedInt8BroadcastWeights) {
+  int kInputDims_LHS[] = {3, 2, 2, 10};
+  int kInputDims_RHS[] = {2, 10, 3};
+  int* kInputDims[tflite::testing::kNumInputs] = {kInputDims_LHS,
+                                                  kInputDims_RHS};
+
+  constexpr float kInput_LHS[] = {
+      1,  2,  3,  4,  5,  6,  7,  8,   -9,  -10,  // batch 0, 0
+      1,  2,  3,  4,  5,  6,  7,  -8,  9,   -10,  // batch 0, 1
+      11, 12, 13, 14, 15, 16, 17, 18,  -19, -20,  // batch 1, 0
+      11, 12, 13, 14, 15, 16, 17, -18, 19,  -20,  // batch 1, 1
+  };
+
+  constexpr float kInput_RHS[] = {
+      1, 1, 1, 2, 2, 2, 3, 3, 3, 4, 4, 4, 5,  5,  5,
+      6, 6, 6, 7, 7, 7, 8, 8, 8, 9, 9, 9, 10, 10, 10,
+  };
+
+  constexpr float kExpect[] = {
+      24, 24, 24, 56, 56, 56, 194, 194, 194, 248, 248, 248,
+  };
+  int kOutputDims[] = {3, 2, 2, 3};
+  constexpr int kOutputCount = std::extent<decltype(kExpect)>::value;
+  float output_data[kOutputCount];
+
+  constexpr TfLiteBatchMatMulParams params = {
+      false,  // adj_x
+      false,  // adj_y
+      false   // asymmetric_quantize_inputs
+  };
+
+  tflite::testing::TestQuantizationParams<int8_t, kOutputCount>
+      quantization_params = {tflite::testing::kDefaultHybridScale};
+
+  tflite::testing::TestBatchMatMulHybrid(
+      params, &quantization_params, kInputDims, kInput_LHS, kInput_RHS,
+      kOutputDims, kExpect, output_data,
+      tflite::testing::kHybridAsymmetricTolerance);
+}
+
+TF_LITE_MICRO_TEST(
+    HybridSymmetricBatchMatMulOpTestQuantizedInt8BroadcastBigWeights) {
+  int kInputDims_LHS[] = {3, 2, 2, 10};
+  int kInputDims_RHS[] = {2, 10, 9};
+  int* kInputDims[tflite::testing::kNumInputs] = {kInputDims_LHS,
+                                                  kInputDims_RHS};
+
+  constexpr float kInput_LHS[] = {
+      1,  2,  3,  4,  5,  6,  7,  8,   -9,  -10,  // batch 0, 0
+      1,  2,  3,  4,  5,  6,  7,  -8,  9,   -10,  // batch 0, 1
+      11, 12, 13, 14, 15, 16, 17, 18,  -19, -20,  // batch 1, 0
+      11, 12, 13, 14, 15, 16, 17, -18, 19,  -20,  // batch 1, 1
+  };
+
+  constexpr float kInput_RHS[] = {
+      1, 1, 1, 17, 17, 17, 26, 26, 26, 2,  2,  2,  18, 18, 18, 27, 27, 27,
+      3, 3, 3, 19, 19, 19, 28, 28, 28, 4,  4,  4,  20, 20, 20, 29, 29, 29,
+      5, 5, 5, 21, 21, 21, 30, 30, 30, 6,  6,  6,  22, 22, 22, 31, 31, 31,
+      7, 7, 7, 23, 23, 23, 32, 32, 32, 8,  8,  8,  24, 24, 24, 33, 33, 33,
+      9, 9, 9, 25, 25, 25, 34, 34, 34, 10, 10, 10, 26, 26, 26, 35, 35, 35,
+  };
+
+  constexpr float kExpect[] = {
+      23,   23,   23,   296, 296, 296, 451,  451,  451,  58,   58,   58,
+      362,  362,  362,  529, 529, 529, 193,  193,  193,  1424, 1424, 1424,
+      2118, 2118, 2118, 253, 253, 253, 1519, 1519, 1519, 2223, 2223, 2223};
+  int kOutputDims[] = {3, 2, 2, 9};
+  constexpr int kOutputCount = std::extent<decltype(kExpect)>::value;
+  float output_data[kOutputCount];
+
+  constexpr TfLiteBatchMatMulParams params = {
+      false,  // adj_x
+      false,  // adj_y
+      false   // asymmetric_quantize_inputs
+  };
+
+  tflite::testing::TestQuantizationParams<int8_t, kOutputCount>
+      quantization_params = {tflite::testing::kDefaultHybridScale};
+
+  tflite::testing::TestBatchMatMulHybrid(
+      params, &quantization_params, kInputDims, kInput_LHS, kInput_RHS,
+      kOutputDims, kExpect, output_data,
+      tflite::testing::kHybridAsymmetricTolerance);
+}
+
+TF_LITE_MICRO_TEST(
+    HybridSymmetricBatchMatMulOpTestQuantizedInt8BroadcastInputs) {
+  int kInputDims_LHS[] = {2, 2, 10};
+  int kInputDims_RHS[] = {3, 2, 10, 3};
+  int* kInputDims[tflite::testing::kNumInputs] = {kInputDims_LHS,
+                                                  kInputDims_RHS};
+
+  constexpr float kInput_LHS[] = {
+      1, 2, 3, 4, 5, 6, 7, 8,  -9, -10,  // batch 0, 0
+      1, 2, 3, 4, 5, 6, 7, -8, 9,  -10,  // batch 0, 1
+  };
+
+  constexpr float kInput_RHS[] = {
+      1, -3, 1, 2, -2, 2, 3, -1, 3, 4,  0, 4, 5, 1, 5, 6, 2, 6,  7,  3,
+      7, 8,  4, 8, 9,  5, 9, 10, 6, 10, 1, 1, 1, 2, 2, 2, 3, 3,  3,  4,
+      4, 4,  5, 5, 5,  6, 6, 6,  7, 7,  7, 8, 8, 8, 9, 9, 9, 10, 10, 10,
+  };
+
+  constexpr float kExpect[] = {
+      24, -45, 24, 56, -19, 56, 24, 24, 24, 56, 56, 56,
+  };
+  int kOutputDims[] = {3, 2, 2, 3};
+  constexpr int kOutputCount = std::extent<decltype(kExpect)>::value;
+  float output_data[kOutputCount];
+
+  constexpr TfLiteBatchMatMulParams params = {
+      false,  // adj_x
+      false,  // adj_y
+      false   // asymmetric_quantize_inputs
+  };
+
+  tflite::testing::TestQuantizationParams<int8_t, kOutputCount>
+      quantization_params = {tflite::testing::kDefaultHybridScale};
+
+  tflite::testing::TestBatchMatMulHybrid(
+      params, &quantization_params, kInputDims, kInput_LHS, kInput_RHS,
+      kOutputDims, kExpect, output_data,
+      tflite::testing::kHybridAsymmetricTolerance);
+}
+#endif  // notyet
 
 TF_LITE_MICRO_TESTS_END
