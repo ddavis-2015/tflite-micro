@@ -41,4 +41,5 @@ py_library(
         "//python/tflite_micro/signal:ops",
         requirement("tensorflow-cpu"),
     ],
+    visibility = ["//visibility:public"],
 )

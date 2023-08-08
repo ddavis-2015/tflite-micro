@@ -1,5 +1,6 @@
 # Description:
 #   TensorFlow Lite microcontroller example.
+load("@tflm_pip_deps//:requirements.bzl", "requirement")
 load("//tensorflow/lite/micro:build_def.bzl", "generate_cc_arrays")
 
 package(
@@ -450,4 +451,28 @@ sh_test(
     name = "micro_speech_binary_mock_test",
     srcs = ["micro_speech_binary_mock_test.sh"],
     data = [":micro_speech_mock"],
+)
+
+filegroup(
+    name = "samples_30ms",
+    srcs = glob(["testdata/*_30ms.wav"]),
+)
+
+py_binary(
+    name = "generate_features",
+    srcs = ["generate_features.py"],
+    data = [
+        ":samples_30ms",
+    ],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "@absl_py//absl:app",
+        "@absl_py//absl/flags",
+        "@absl_py//absl/logging",
+        requirement("numpy"),
+        requirement("tensorflow-cpu"),
+        "//python/tflite_micro/signal:ops",
+        "//python/tflite_micro/signal/utils:util",
+    ],
 )
