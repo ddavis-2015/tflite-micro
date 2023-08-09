@@ -20,6 +20,9 @@ import numpy as np
 import matplotlib.pyplot as plt
 from tensorflow.python.platform import resource_loader
 from tflite_micro.python.tflite_micro.signal.ops import window_op
+from tflite_micro.python.tflite_micro.signal.ops import fft_ops
+from tflite_micro.python.tflite_micro.signal.ops import energy_op
+from tflite_micro.python.tflite_micro.signal.ops import filter_bank_ops
 
 _PREFIX_PATH = resource_loader.get_path_to_datafile('')
 
@@ -45,6 +48,7 @@ def load_samples(filename: Path) -> tuple[tf.Tensor, int]:
 
 def generate_features_for_frame(audio_frame: tf.Tensor,
                                 sample_rate: int) -> tf.Tensor:
+  # apply window to audio frame
   window_shift = 12
   window_sample_count = 30 * sample_rate / 1000
   weights: np.ndarray = window_op.hann_window_weights(
@@ -53,9 +57,53 @@ def generate_features_for_frame(audio_frame: tf.Tensor,
   print(f'weights shape: {weights.shape}')
   window_output: tf.Tensor = window_op.window(
       audio_frame, weights, window_shift)
+  # print(f'window output: {window_output!r}')
 
-  print(f'window output: {window_output!r}')
-  return window_output[0, 0:40]
+  # pre-scale window output
+  window_output = tf.reshape(window_output, [-1])
+  window_scaled_output, scaling_shift = fft_ops.fft_auto_scale(window_output)
+  print(f'scaling shift: {scaling_shift!r}')
+  # print(f'window_scaled_output: {window_scaled_output!r}')
+
+  # compute FFT on scaled window output
+  fft_size, _ = fft_ops.get_pow2_fft_length(len(window_scaled_output))
+  print(f'fft size: {fft_size}')
+  fft_output = fft_ops.rfft(window_scaled_output, fft_size)
+
+  # convert fft output complex numbers to energy values
+  number_of_channels = 40
+  lower_band_limit_hz = 125.0
+  upper_band_limit_hz = 7500.0
+  index_start, index_end = filter_bank_ops.calc_start_end_indices(
+      fft_size, sample_rate, number_of_channels,
+      lower_band_limit_hz, upper_band_limit_hz)
+  print(f'index start, end: {index_start}, {index_end}')
+  energy_output: tf.Tensor = energy_op.energy(
+      fft_output, index_start, index_end)
+
+  # compress energy output into 40 channels
+  filter_output: tf.Tensor = filter_bank_ops.filter_bank(
+      energy_output, sample_rate, number_of_channels,
+      lower_band_limit_hz, upper_band_limit_hz)
+
+  # scale down filter_output
+  filter_scaled_output: tf.Tensor = filter_bank_ops.filter_bank_square_root(
+      filter_output, scaling_shift)
+
+  # noise reduction
+
+  # automatic gain control
+
+  # re-scale features from UINT32 to UINT16
+  # int correction_bits =
+  #   MostSignificantBit32(state->fft.fft_size) - 1 - (kFilterbankBits / 2);
+  #   (10 - 1 - (12 / 2))
+  feature_post_scale_shift = 6
+  feature_pre_scale_shift = 3
+  feature_rescaled_output: tf.Tensor = filter_bank_ops.filter_bank_log(
+      filter_scaled_output, feature_post_scale_shift, feature_pre_scale_shift)
+
+  return feature_rescaled_output
 
 
 def main(_):
@@ -68,8 +116,8 @@ def main(_):
   yes_samples, yes_sample_rate = load_samples(yes_30ms_path)
   yes_features = generate_features_for_frame(yes_samples, yes_sample_rate)
 
-  print(f'no features: {no_features}')
-  print(f'yes features: {yes_features}')
+  print(f'no features: {no_features!r}')
+  print(f'yes features: {yes_features!r}')
 
 
 if __name__ == '__main__':
