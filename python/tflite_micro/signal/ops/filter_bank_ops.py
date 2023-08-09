@@ -267,7 +267,7 @@ def _filter_bank_square_root_wrapper(filter_bank_square_root_fn, default_name):
 
 
 def _filter_bank_spectral_subtraction_wrapper(
-    filter_bank_spectral_subtraction_fn, default_name):
+        filter_bank_spectral_subtraction_fn, default_name):
   """Wrapper around gen_filter_bank_ops.filter_bank_spectral_subtraction*."""
 
   def _filter_bank_spectral_subtraction(input_tensor,
@@ -285,16 +285,16 @@ def _filter_bank_spectral_subtraction_wrapper(
       if len(dim_list) != 1:
         raise ValueError("Input tensor must have a rank of 1")
 
-      min_signal_remaining = int(min_signal_remaining *
-                                 (1 << spectral_subtraction_bits))
+      # min_signal_remaining = int(min_signal_remaining *
+      #                            (1 << spectral_subtraction_bits))
       # Alternate smoothing may be disabled
       if alternate_smoothing == 0:
         alternate_smoothing = smoothing
 
-      smoothing = int(smoothing * (1 << spectral_subtraction_bits))
+      # smoothing = int(smoothing * (1 << spectral_subtraction_bits))
       one_minus_smoothing = int((1 << spectral_subtraction_bits) - smoothing)
-      alternate_smoothing = int(alternate_smoothing *
-                                (1 << spectral_subtraction_bits))
+      # alternate_smoothing = int(alternate_smoothing *
+      #                          (1 << spectral_subtraction_bits))
       alternate_one_minus_smoothing = int((1 << spectral_subtraction_bits) -
                                           alternate_smoothing)
       return filter_bank_spectral_subtraction_fn(

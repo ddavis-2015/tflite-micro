@@ -91,8 +91,26 @@ def generate_features_for_frame(audio_frame: tf.Tensor,
       filter_output, scaling_shift)
 
   # noise reduction
-
-  # automatic gain control
+  # config.noise_reduction.smoothing_bits = 10;
+  # config.noise_reduction.even_smoothing = 0.025;
+  # config.noise_reduction.odd_smoothing = 0.06;
+  # config.noise_reduction.min_signal_remaining = 0.05;
+  noise_reduction_bits = 14
+  smoothing_bits = 10
+  even_smoothing = int(0.025 * (1 << noise_reduction_bits))
+  odd_smoothing = int(0.06 * (1 << noise_reduction_bits))
+  min_signal_remaining = int(0.05 * (1 << noise_reduction_bits))
+  filter_noise_output, _ = filter_bank_ops.filter_bank_spectral_subtraction(
+      filter_scaled_output,
+      num_channels=number_of_channels,
+      smoothing=even_smoothing,
+      alternate_smoothing=odd_smoothing,
+      smoothing_bits=smoothing_bits,
+      min_signal_remaining=min_signal_remaining,
+      clamping=False,
+      spectral_subtraction_bits=noise_reduction_bits,
+  )
+  # automatic gain control (TBD)
 
   # re-scale features from UINT32 to UINT16
   # int correction_bits =
@@ -101,9 +119,48 @@ def generate_features_for_frame(audio_frame: tf.Tensor,
   feature_post_scale_shift = 6
   feature_pre_scale_shift = 3
   feature_rescaled_output: tf.Tensor = filter_bank_ops.filter_bank_log(
-      filter_scaled_output, feature_post_scale_shift, feature_pre_scale_shift)
+      filter_noise_output,
+      output_scale=feature_post_scale_shift,
+      input_correction_bits=feature_pre_scale_shift)
 
-  return feature_rescaled_output
+  # // These scaling values are derived from those used in input_data.py in the
+  # // training pipeline.
+  # // The feature pipeline outputs 16-bit signed integers in roughly a 0 to 670
+  # // range. In training, these are then arbitrarily divided by 25.6 to get
+  # // float values in the rough range of 0.0 to 26.0. This scaling is performed
+  # // for historical reasons, to match up with the output of other feature
+  # // generators.
+  # // The process is then further complicated when we quantize the model. This
+  # // means we have to scale the 0.0 to 26.0 real values to the -128 to 127
+  # // signed integer numbers.
+  # // All this means that to get matching values from our integer feature
+  # // output into the tensor input, we have to perform:
+  # // input = (((feature / 25.6) / 26.0) * 256) - 128
+  # // To simplify this and perform it in 32-bit integer math, we rearrange to:
+  # // input = (feature * 256) / (25.6 * 26.0) - 128
+  # constexpr int32_t value_scale = 256;
+  # constexpr int32_t value_div = static_cast<int32_t>((25.6f * 26.0f) + 0.5f);
+  # int32_t value =
+  #     ((frontend_output.values[i] * value_scale) + (value_div / 2)) /
+  #     value_div;
+  # value -= 128;
+  # if (value < -128) {
+  #   value = -128;
+  # }
+  # if (value > 127) {
+  #   value = 127;
+  # }
+  # output[i] = value;
+
+  value_scale = 256
+  value_div = int((25.6 * 26) + 0.5)
+  feature_output = ((feature_rescaled_output * value_scale) +
+                    (value_div // 2)) // value_div
+  feature_output -= 128
+  feature_output = tf.clip_by_value(
+      feature_output, clip_value_min=-128, clip_value_max=127)
+
+  return feature_output
 
 
 def main(_):
