@@ -63,12 +63,13 @@ def generate_features_for_frame(audio_frame: tf.Tensor,
   window_output = tf.reshape(window_output, [-1])
   window_scaled_output, scaling_shift = fft_ops.fft_auto_scale(window_output)
   print(f'scaling shift: {scaling_shift!r}')
-  # print(f'window_scaled_output: {window_scaled_output!r}')
+  # print(f'window scaled output: {window_scaled_output!r}')
 
   # compute FFT on scaled window output
   fft_size, _ = fft_ops.get_pow2_fft_length(len(window_scaled_output))
   print(f'fft size: {fft_size}')
   fft_output = fft_ops.rfft(window_scaled_output, fft_size)
+  print(f'fft output: {fft_output!r}')
 
   # convert fft output complex numbers to energy values
   number_of_channels = 40
@@ -80,6 +81,7 @@ def generate_features_for_frame(audio_frame: tf.Tensor,
   print(f'index start, end: {index_start}, {index_end}')
   energy_output: tf.Tensor = energy_op.energy(
       fft_output, index_start, index_end)
+  # print(f'energy output: {energy_output!r}')
 
   # compress energy output into 40 channels
   filter_output: tf.Tensor = filter_bank_ops.filter_bank(
@@ -110,6 +112,7 @@ def generate_features_for_frame(audio_frame: tf.Tensor,
       clamping=False,
       spectral_subtraction_bits=noise_reduction_bits,
   )
+
   # automatic gain control (TBD)
 
   # re-scale features from UINT32 to UINT16
@@ -154,7 +157,7 @@ def generate_features_for_frame(audio_frame: tf.Tensor,
 
   value_scale = 256
   value_div = int((25.6 * 26) + 0.5)
-  feature_output = ((feature_rescaled_output * value_scale) +
+  feature_output = ((tf.cast(feature_rescaled_output, tf.int32) * value_scale) +
                     (value_div // 2)) // value_div
   feature_output -= 128
   feature_output = tf.clip_by_value(

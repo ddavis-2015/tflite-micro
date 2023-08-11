@@ -16,6 +16,7 @@ limitations under the License.
 #include "signal/src/filter_bank_log.h"
 
 #include "signal/src/log.h"
+#include "tensorflow/lite/micro/micro_log.h"
 
 namespace tflite {
 namespace tflm_signal {
@@ -23,6 +24,7 @@ namespace tflm_signal {
 void FilterbankLog(const uint32_t* input, int num_channels,
                    int32_t output_scale, uint32_t correction_bits,
                    int16_t* output) {
+  int clamped = 0;
   for (int i = 0; i < num_channels; ++i) {
     const uint32_t scaled = input[i] << correction_bits;
     if (scaled > 1) {
@@ -30,10 +32,15 @@ void FilterbankLog(const uint32_t* input, int num_channels,
       output[i] = ((log_value < static_cast<uint32_t>(INT16_MAX))
                        ? log_value
                        : static_cast<uint32_t>(INT16_MAX));
+      if (log_value >= static_cast<uint32_t>(INT16_MAX)) {
+        clamped++;
+      }
+
     } else {
       output[i] = 0;
     }
   }
+  MicroPrintf("clamped: %d", clamped);
 }
 
 }  // namespace tflm_signal
