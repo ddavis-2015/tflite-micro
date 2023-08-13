@@ -47,29 +47,29 @@ def load_samples(filename: Path) -> tuple[tf.Tensor, int]:
 
 
 def generate_features_for_frame(audio_frame: tf.Tensor,
-                                sample_rate: int) -> tf.Tensor:
+                                sample_rate: int, detail: str) -> tf.Tensor:
   # apply window to audio frame
   window_shift = 12
   window_sample_count = 30 * sample_rate / 1000
   weights: np.ndarray = window_op.hann_window_weights(
       window_sample_count, window_shift)
-  print(f'audio frame shape: {audio_frame.get_shape()}')
-  print(f'weights shape: {weights.shape}')
+  print(f'audio frame shape [{detail}]: {audio_frame.get_shape()}')
+  print(f'weights shape [{detail}]: {weights.shape}')
   window_output: tf.Tensor = window_op.window(
       audio_frame, weights, window_shift)
-  # print(f'window output: {window_output!r}')
+  print(f'window output [{detail}]: {window_output!r}')
 
   # pre-scale window output
   window_output = tf.reshape(window_output, [-1])
   window_scaled_output, scaling_shift = fft_ops.fft_auto_scale(window_output)
-  print(f'scaling shift: {scaling_shift!r}')
+  print(f'scaling shift [{detail}]: {scaling_shift!r}')
   # print(f'window scaled output: {window_scaled_output!r}')
 
   # compute FFT on scaled window output
   fft_size, _ = fft_ops.get_pow2_fft_length(len(window_scaled_output))
-  print(f'fft size: {fft_size}')
+  print(f'fft size [{detail}]: {fft_size}')
   fft_output = fft_ops.rfft(window_scaled_output, fft_size)
-  print(f'fft output: {fft_output!r}')
+  print(f'fft output [{detail}]: {fft_output!r}')
 
   # convert fft output complex numbers to energy values
   number_of_channels = 40
@@ -78,19 +78,21 @@ def generate_features_for_frame(audio_frame: tf.Tensor,
   index_start, index_end = filter_bank_ops.calc_start_end_indices(
       fft_size, sample_rate, number_of_channels,
       lower_band_limit_hz, upper_band_limit_hz)
-  print(f'index start, end: {index_start}, {index_end}')
+  print(f'index start, end [{detail}]: {index_start}, {index_end}')
   energy_output: tf.Tensor = energy_op.energy(
       fft_output, index_start, index_end)
-  # print(f'energy output: {energy_output!r}')
+  print(f'energy output [{detail}]: {energy_output!r}')
 
   # compress energy output into 40 channels
   filter_output: tf.Tensor = filter_bank_ops.filter_bank(
       energy_output, sample_rate, number_of_channels,
       lower_band_limit_hz, upper_band_limit_hz)
+  print(f'filterbank output [{detail}]: {filter_output!r}')
 
   # scale down filter_output
   filter_scaled_output: tf.Tensor = filter_bank_ops.filter_bank_square_root(
       filter_output, scaling_shift)
+  print(f'scaled filterbank output [{detail}]: {filter_scaled_output!r}')
 
   # noise reduction
   # config.noise_reduction.smoothing_bits = 10;
@@ -112,6 +114,7 @@ def generate_features_for_frame(audio_frame: tf.Tensor,
       clamping=False,
       spectral_subtraction_bits=noise_reduction_bits,
   )
+  print(f'noise output [{detail}]: {filter_noise_output!r}')
 
   # automatic gain control (TBD)
 
@@ -120,11 +123,13 @@ def generate_features_for_frame(audio_frame: tf.Tensor,
   #   MostSignificantBit32(state->fft.fft_size) - 1 - (kFilterbankBits / 2);
   #   (10 - 1 - (12 / 2))
   feature_post_scale_shift = 6
+  feature_post_scale = 1 << feature_post_scale_shift
   feature_pre_scale_shift = 3
   feature_rescaled_output: tf.Tensor = filter_bank_ops.filter_bank_log(
       filter_noise_output,
-      output_scale=feature_post_scale_shift,
+      output_scale=feature_post_scale,
       input_correction_bits=feature_pre_scale_shift)
+  print(f'scaled noise output [{detail}]: {feature_rescaled_output!r}')
 
   # // These scaling values are derived from those used in input_data.py in the
   # // training pipeline.
@@ -163,7 +168,7 @@ def generate_features_for_frame(audio_frame: tf.Tensor,
   feature_output = tf.clip_by_value(
       feature_output, clip_value_min=-128, clip_value_max=127)
 
-  return feature_output
+  return tf.cast(feature_output, tf.int8)
 
 
 def main(_):
@@ -172,12 +177,13 @@ def main(_):
 
   print(f'Paths:\n{no_30ms_path}\n{yes_30ms_path}')
   no_samples, no_sample_rate = load_samples(no_30ms_path)
-  no_features = generate_features_for_frame(no_samples, no_sample_rate)
+  no_features = generate_features_for_frame(no_samples, no_sample_rate, 'no')
   yes_samples, yes_sample_rate = load_samples(yes_30ms_path)
-  yes_features = generate_features_for_frame(yes_samples, yes_sample_rate)
+  yes_features = generate_features_for_frame(
+      yes_samples, yes_sample_rate, 'yes')
 
-  print(f'no features: {no_features!r}')
-  print(f'yes features: {yes_features!r}')
+  print(f'features [no]: {no_features!r}')
+  print(f'features [yes]: {yes_features!r}')
 
 
 if __name__ == '__main__':

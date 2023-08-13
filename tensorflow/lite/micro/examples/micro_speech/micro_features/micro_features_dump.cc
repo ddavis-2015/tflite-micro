@@ -137,41 +137,54 @@ struct FrontendOutput _FrontendProcessSamples(struct FrontendState* state,
                             num_samples_read)) {
     return output;
   }
-  // DumpData(state->window.output, num_samples, "Window", detail);
+  DumpData(state->window.output, num_samples, "Window", detail);
 
   // Apply the FFT to the window's output (and scale it so that the fixed
   // point FFT can have as much resolution as possible).
   int input_shift =
       15 - MostSignificantBit32(state->window.max_abs_output_value);
-  fprintf(stderr, "input shift %d\n", input_shift);
+  fprintf(stderr, "input shift %d [%s]\n", input_shift, detail);
   FftCompute(&state->fft, state->window.output, input_shift);
-  DumpData(state->fft.output, state->fft.fft_size / 2 + 1, "FFT", detail);
+  DumpData(reinterpret_cast<int16_t*>(state->fft.output),
+           state->fft.fft_size + 2, "FFT", detail);
 
   // We can re-ruse the fft's output buffer to hold the energy.
   int32_t* energy = (int32_t*)state->fft.output;
 
   FilterbankConvertFftComplexToEnergy(&state->filterbank, state->fft.output,
                                       energy);
-  fprintf(stderr, "start index %d, end index %d\n",
-          state->filterbank.start_index, state->filterbank.end_index);
-  // DumpData(energy, state->fft.fft_size / 2 + 1, "Energy", detail);
+  fprintf(stderr, "start index %d, end index %d [%s]\n",
+          state->filterbank.start_index, state->filterbank.end_index, detail);
+  DumpData(energy, state->fft.fft_size / 2 + 1, "Energy", detail);
 
   FilterbankAccumulateChannels(&state->filterbank, energy);
+  DumpData(state->filterbank.work, state->filterbank.num_channels + 1,
+           "Filterbank", detail);
+
   uint32_t* scaled_filterbank = FilterbankSqrt(&state->filterbank, input_shift);
+  DumpData(scaled_filterbank, state->filterbank.num_channels,
+           "Scaled Filterbank", detail);
 
   // Apply noise reduction.
   NoiseReductionApply(&state->noise_reduction, scaled_filterbank);
+  DumpData(scaled_filterbank, state->noise_reduction.num_channels, "Noise",
+           detail);
 
   if (state->pcan_gain_control.enable_pcan) {
     PcanGainControlApply(&state->pcan_gain_control, scaled_filterbank);
+    DumpData(scaled_filterbank, state->pcan_gain_control.num_channels,
+             "AGC Noise", detail);
   }
 
   // Apply the log and scale.
   int correction_bits =
       MostSignificantBit32(state->fft.fft_size) - 1 - (kFilterbankBits / 2);
+  fprintf(stderr, "correction bits %d [%s]\n", correction_bits, detail);
   uint16_t* logged_filterbank =
       LogScaleApply(&state->log_scale, scaled_filterbank,
                     state->filterbank.num_channels, correction_bits);
+  DumpData(logged_filterbank, state->filterbank.num_channels, "Scaled Noise",
+           detail);
 
   output.size = state->filterbank.num_channels;
   output.values = logged_filterbank;
