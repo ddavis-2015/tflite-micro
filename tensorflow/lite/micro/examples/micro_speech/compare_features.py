@@ -17,6 +17,8 @@ import argparse
 from collections.abc import Generator
 from typing import TextIO
 import re
+import functools
+import operator
 
 ParsedFile = dict[str, list[int]]
 
@@ -29,8 +31,18 @@ def get_next_line_generator(file: TextIO) -> Generator[str]:
 
 
 def parse_tensor_data() -> list[int]:
-  return []
+  values_list: list[int] = []
+  pattern = r'(-?\d+)[,\]]\s*'
+  pattern_re = re.compile(pattern)
 
+  for line in get_next_line:
+    values: list[str] = pattern_re.findall(line)
+    values_list += values
+    if ']' in line:
+      break
+
+  values_list = list(map(int, values_list))
+  return values_list
 
 def parse_dump_data() -> list[int]:
   values_list: list[int] = []
@@ -45,6 +57,18 @@ def parse_dump_data() -> list[int]:
 
   values_list = list(map(int, values_list))
   return values_list
+
+
+def parse_flat_size(line: str) -> int:
+  # print(f'line: {line}')
+  shape_pattern = r'shape=\((?:\d+,?\s?)+\)'
+  match = re.search(shape_pattern, line)
+  # print(f'match: {match!r}')
+  digit_pattern = r'\d+'
+  result: list[str] = re.findall(digit_pattern, match.group(0))
+  # print(f'shape dims: {result!r}')
+  flat_size = functools.reduce(lambda x, y: int(x) * int(y), result, 1)
+  return flat_size
 
 
 def parse_file(file: TextIO) -> ParsedFile:
@@ -67,11 +91,15 @@ def parse_file(file: TextIO) -> ParsedFile:
 
     if match_tensor is not None:
       # print(f'groups:{match_tensor.groups()!r}')
-      if not match_tensor.group(1) is None:
-        key = match_tensor.expand(r'\1 [\3]')
+      if match_tensor.group(1) is not None:
+        key = match_tensor.expand(r'\1 [\3]').lower()
       else:
         key = match_tensor.expand(r'\2 [\3]').lower()
       value = parse_tensor_data()
+      flat_size = parse_flat_size(line)
+      if flat_size != len(value):
+        print(f'data size ({len(value)}) != flat size ({flat_size})')
+        continue
     elif match_dump is not None:
       # print(f'groups:{match_dump.groups()!r}')
       key = match_dump.expand(r'\1 [\2]').lower()
@@ -94,7 +122,13 @@ def find_missing_keys(file1: ParsedFile, file2: ParsedFile):
 
 
 def compare_parsed_files(file1: ParsedFile, file2: ParsedFile):
-  pass
+  for key in file1.keys():
+    if key not in file2.keys():
+      continue
+    if file1[key] == file2[key]:
+      continue
+    diff = list(map(operator.sub, file1[key], file2[key]))
+    print(f'key {{{key}}} differs:\n{diff}\n')
 
 
 def main():
@@ -107,8 +141,8 @@ def main():
 
   parsed_file1 = parse_file(args.file1)
   parsed_file2 = parse_file(args.file2)
-  print(f'{parsed_file1!r}')
-  print(f'{parsed_file2!r}')
+  #print(f'{parsed_file1!r}')
+  #print(f'{parsed_file2!r}')
   find_missing_keys(parsed_file1, parsed_file2)
   compare_parsed_files(parsed_file1, parsed_file2)
 
