@@ -44,6 +44,10 @@ class _GenerateFeature(tf.Module):
     super().__init__(name=name)
     self._sample_rate = sample_rate
     self._detail = detail
+    self._window_shift = 12
+    self._window_sample_count = 30 * sample_rate / 1000
+    self._hann_window_weights = tf.constant(window_op.hann_window_weights(
+        self._window_sample_count, self._window_shift))
 
   def generate_feature_for_frame(self, audio_frame: tf.Tensor) -> tf.Tensor:
     sample_rate = self._sample_rate
@@ -52,14 +56,14 @@ class _GenerateFeature(tf.Module):
     _debug_print(f'audio frame output [{detail}]: {audio_frame!r}')
 
     # apply window to audio frame
-    window_shift = 12
-    window_sample_count = 30 * sample_rate / 1000
-    weights = tf.convert_to_tensor(window_op.hann_window_weights(
-        window_sample_count, window_shift))
+    window_shift = self._window_shift
+    window_sample_count = self._window_sample_count
+    weights = self._hann_window_weights
     _debug_print(f'window weights output [{detail}]: {weights!r}')
     window_output: tf.Tensor = window_op.window(
         audio_frame, weights, window_shift)
     _debug_print(f'window output [{detail}]: {window_output!r}')
+    # return window_output
 
     # pre-scale window output
     window_output = tf.reshape(window_output, [-1])
@@ -256,6 +260,7 @@ class AudioPreprocessor():
           [cf], self._get_feature_generator())
       converter.allow_custom_ops = True
       model = converter.convert()
+      tf.lite.experimental.Analyzer.analyze(model_content=model)
       self._tflm_interpreter = runtime.Interpreter.from_bytes(model)
 
     self._tflm_interpreter.set_input(audio_frame, 0)
@@ -278,9 +283,13 @@ def main(_):
   no_features_using_graph = pp.generate_feature_using_graph(pp.samples)
   print(f'no_features_using_func: {no_features_using_func!r}')
   print(f'no_features_using_graph: {no_features_using_graph!r}')
-  assert all(no_features_using_func == no_features_using_graph)
+  assert all(no_features_using_func.numpy().flatten() ==
+             no_features_using_graph.numpy().flatten())
   no_features_using_tflm = pp.generate_feature_using_tflm(pp.samples)
+  no_features_using_tflm = tf.convert_to_tensor(no_features_using_tflm)
   print(f'no_features_using_tflm: {no_features_using_tflm!r}')
+  assert all(no_features_using_tflm.numpy().flatten() ==
+             no_features_using_graph.numpy().flatten())
 
   pp = AudioPreprocessor(detail='yes')
   pp.load_samples(yes_30ms_path)
@@ -288,7 +297,13 @@ def main(_):
   yes_features_using_graph = pp.generate_feature_using_graph(pp.samples)
   print(f'yes_features_using_func: {yes_features_using_func!r}')
   print(f'yes_features_using_graph: {yes_features_using_graph!r}')
-  assert all(yes_features_using_func == yes_features_using_graph)
+  assert all(yes_features_using_func.numpy().flatten() ==
+             yes_features_using_graph.numpy().flatten())
+  yes_features_using_tflm = pp.generate_feature_using_tflm(pp.samples)
+  yes_features_using_tflm = tf.convert_to_tensor(yes_features_using_tflm)
+  print(f'yes_features_using_tflm: {yes_features_using_tflm!r}')
+  assert all(yes_features_using_tflm.numpy().flatten() ==
+             yes_features_using_graph.numpy().flatten())
 
 
 if __name__ == '__main__':
