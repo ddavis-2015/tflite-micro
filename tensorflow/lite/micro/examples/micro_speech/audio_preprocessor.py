@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Callable
 from pathlib import Path
 import tensorflow as tf
 from absl import app
@@ -45,11 +46,12 @@ class _GenerateFeature(tf.Module):
     self._sample_rate = sample_rate
     self._detail = detail
     self._window_shift = 12
-    self._window_sample_count = 30 * sample_rate / 1000
+    window_sample_count = 30 * sample_rate / 1000
     self._hann_window_weights = tf.constant(window_op.hann_window_weights(
-        self._window_sample_count, self._window_shift))
+        window_sample_count, self._window_shift))
 
   def generate_feature_for_frame(self, audio_frame: tf.Tensor) -> tf.Tensor:
+    print('*** generate_feature_for_frame ***')
     sample_rate = self._sample_rate
     detail = self._detail
 
@@ -57,7 +59,6 @@ class _GenerateFeature(tf.Module):
 
     # apply window to audio frame
     window_shift = self._window_shift
-    window_sample_count = self._window_sample_count
     weights = self._hann_window_weights
     _debug_print(f'window weights output [{detail}]: {weights!r}')
     window_output: tf.Tensor = window_op.window(
@@ -108,9 +109,9 @@ class _GenerateFeature(tf.Module):
     # config.noise_reduction.min_signal_remaining = 0.05;
     noise_reduction_bits = 14
     smoothing_bits = 10
-    even_smoothing = int(0.025 * (1 << noise_reduction_bits))
-    odd_smoothing = int(0.06 * (1 << noise_reduction_bits))
-    min_signal_remaining = int(0.05 * (1 << noise_reduction_bits))
+    even_smoothing = 0.025
+    odd_smoothing = 0.06
+    min_signal_remaining = 0.05
     filter_noise_output, _ = filter_bank_ops.filter_bank_spectral_subtraction(
         filter_scaled_output,
         num_channels=number_of_channels,
@@ -122,7 +123,10 @@ class _GenerateFeature(tf.Module):
         spectral_subtraction_bits=noise_reduction_bits,
     )
     _debug_print(f'noise output [{detail}]: {filter_noise_output!r}')
+    return filter_noise_output
 
+
+"""
     # automatic gain control (TBD)
 
     # re-scale features from UINT32 to UINT16
@@ -179,6 +183,7 @@ class _GenerateFeature(tf.Module):
     _debug_print(f'feature output [{detail}]: {feature_output!r}')
 
     return feature_output
+    """
 
 
 class AudioPreprocessor():
@@ -203,14 +208,15 @@ class AudioPreprocessor():
     return self._feature_generator
 
   def _get_concrete_function(self):
+    # self._feature_generator_concrete_function = None
     if self._feature_generator_concrete_function is None:
       shape = [1, self._samples_per_window]
       fg = self._get_feature_generator()
-      func = tf.function(
-          func=fg.generate_feature_for_frame,
-          input_signature=[
-              tf.TensorSpec(shape=shape, dtype=tf.int16)])
-      self._feature_generator_concrete_function = func.get_concrete_function()
+      func = tf.function(func=fg.generate_feature_for_frame)
+      self._feature_generator_concrete_function = func.get_concrete_function(
+          tf.TensorSpec(shape=shape, dtype=tf.int16))
+      self._func = func
+      # self._feature_generator_concrete_function = func
     return self._feature_generator_concrete_function
 
   def load_samples(self, filename: Path):
@@ -250,6 +256,7 @@ class AudioPreprocessor():
 
   def generate_feature_using_graph(self, audio_frame: tf.Tensor) -> tf.Tensor:
     cf = self._get_concrete_function()
+    # _debug_print(f'graph:\n{cf.graph.as_graph_def()!r}')
     feature = cf(audio_frame=audio_frame)
     return feature
 
@@ -260,16 +267,33 @@ class AudioPreprocessor():
           [cf], self._get_feature_generator())
       converter.allow_custom_ops = True
       model = converter.convert()
-      tf.lite.experimental.Analyzer.analyze(model_content=model)
+      if _ENABLE_DEBUG.value:
+        tf.lite.experimental.Analyzer.analyze(model_content=model)
       self._tflm_interpreter = runtime.Interpreter.from_bytes(model)
 
     self._tflm_interpreter.set_input(audio_frame, 0)
     self._tflm_interpreter.invoke()
     result = self._tflm_interpreter.get_output(0)
-    return result
+    return tf.convert_to_tensor(result)
 
 
-def main(_):
+_FeatureGenFunc = Callable[[tf.Tensor], tf.Tensor]
+
+
+def _compare_test(
+        pp: AudioPreprocessor,
+        f1: _FeatureGenFunc,
+        f2: _FeatureGenFunc,
+        name='unknown'):
+  feature1 = f1(pp.samples)
+  for i in range(1, 4):
+    feature2 = f2(pp.samples)
+    tf.debugging.assert_equal(
+        feature1, feature2, message=f'{name}: iteration {i}')
+  print(f'{name}: {feature1!r}')
+
+
+def _main(_):
   prefix_path = resource_loader.get_path_to_datafile('')
 
   no_30ms_path = Path(prefix_path, 'testdata/no_30ms.wav')
@@ -279,32 +303,60 @@ def main(_):
 
   pp = AudioPreprocessor(detail='no')
   pp.load_samples(no_30ms_path)
-  no_features_using_func = pp.generate_feature(pp.samples)
-  no_features_using_graph = pp.generate_feature_using_graph(pp.samples)
-  print(f'no_features_using_func: {no_features_using_func!r}')
-  print(f'no_features_using_graph: {no_features_using_graph!r}')
-  assert all(no_features_using_func.numpy().flatten() ==
-             no_features_using_graph.numpy().flatten())
-  no_features_using_tflm = pp.generate_feature_using_tflm(pp.samples)
-  no_features_using_tflm = tf.convert_to_tensor(no_features_using_tflm)
-  print(f'no_features_using_tflm: {no_features_using_tflm!r}')
-  assert all(no_features_using_tflm.numpy().flatten() ==
-             no_features_using_graph.numpy().flatten())
+  _compare_test(
+      pp,
+      pp.generate_feature,
+      pp.generate_feature,
+      'no_features_using_func')
+  _compare_test(
+      pp,
+      pp.generate_feature_using_graph,
+      pp.generate_feature_using_graph,
+      'no_features_using_graph')
+  _compare_test(
+      pp,
+      pp.generate_feature,
+      pp.generate_feature_using_graph,
+      'no_features_using_graph crosscheck')
+  _compare_test(
+      pp,
+      pp.generate_feature_using_tflm,
+      pp.generate_feature_using_tflm,
+      'no_features_using_tflm')
+  _compare_test(
+      pp,
+      pp.generate_feature,
+      pp.generate_feature_using_tflm,
+      'no_features_using_tflm crosscheck')
 
   pp = AudioPreprocessor(detail='yes')
   pp.load_samples(yes_30ms_path)
-  yes_features_using_func = pp.generate_feature(pp.samples)
-  yes_features_using_graph = pp.generate_feature_using_graph(pp.samples)
-  print(f'yes_features_using_func: {yes_features_using_func!r}')
-  print(f'yes_features_using_graph: {yes_features_using_graph!r}')
-  assert all(yes_features_using_func.numpy().flatten() ==
-             yes_features_using_graph.numpy().flatten())
-  yes_features_using_tflm = pp.generate_feature_using_tflm(pp.samples)
-  yes_features_using_tflm = tf.convert_to_tensor(yes_features_using_tflm)
-  print(f'yes_features_using_tflm: {yes_features_using_tflm!r}')
-  assert all(yes_features_using_tflm.numpy().flatten() ==
-             yes_features_using_graph.numpy().flatten())
+  _compare_test(
+      pp,
+      pp.generate_feature,
+      pp.generate_feature,
+      'yes_features_using_func')
+  _compare_test(
+      pp,
+      pp.generate_feature_using_graph,
+      pp.generate_feature_using_graph,
+      'yes_features_using_graph')
+  _compare_test(
+      pp,
+      pp.generate_feature,
+      pp.generate_feature_using_graph,
+      'yes_features_using_graph crosscheck')
+  _compare_test(
+      pp,
+      pp.generate_feature_using_tflm,
+      pp.generate_feature_using_tflm,
+      'yes_features_using_tflm')
+  _compare_test(
+      pp,
+      pp.generate_feature,
+      pp.generate_feature_using_tflm,
+      'yes_features_using_tflm crosscheck')
 
 
 if __name__ == '__main__':
-  app.run(main)
+  app.run(_main)
