@@ -26,19 +26,22 @@ from tflite_micro.python.tflite_micro.signal.ops import filter_bank_ops
 from tflite_micro.python.tflite_micro import runtime
 
 
-_ENABLE_DEBUG = flags.DEFINE_bool(
-    'enable_debug',
-    False,
+_ENABLE_DEBUG = flags.DEFINE_enum(
+    'debug_mode',
+    'off',
+    ['off', 'all', 'single'],
     'Enable debug output',
 )
-_FILE_TO_TEST = flags.DEFINE_enum('file_to_test',
-                                  'no',
-                                  ['no', 'yes'],
-                                  'File to test')
+_FILE_TO_TEST = flags.DEFINE_enum(
+    'file_to_test',
+    'no',
+    ['no', 'yes'],
+    'File to test'
+)
 
 
 def _debug_print(*args):
-  if _ENABLE_DEBUG.value:
+  if _ENABLE_DEBUG.value != 'off':
     print(*args)
 
 
@@ -52,35 +55,42 @@ class _GenerateFeature(tf.Module):
     self._window_shift = 12
     window_sample_count = 30 * sample_rate / 1000
     self._hann_window_weights = tf.constant(window_op.hann_window_weights(
-        window_sample_count, self._window_shift))
+        window_sample_count, self._window_shift), name='hann_window_weights')
+    self._debug_single = False
 
   def generate_feature_for_frame(self, audio_frame: tf.Tensor) -> tf.Tensor:
+    def _debug_print_internal(*args):
+      if _ENABLE_DEBUG.value != 'off':
+        if _ENABLE_DEBUG.value == 'single' and self._debug_single:
+          return
+        print(*args)
+
     _debug_print('*** generate_feature_for_frame ***')
     sample_rate = self._sample_rate
     detail = self._detail
 
-    _debug_print(f'audio frame output [{detail}]: {audio_frame!r}')
+    _debug_print_internal(f'audio frame output [{detail}]: {audio_frame!r}')
 
     # apply window to audio frame
     window_shift = self._window_shift
     weights = self._hann_window_weights
-    _debug_print(f'window weights output [{detail}]: {weights!r}')
+    _debug_print_internal(f'window weights output [{detail}]: {weights!r}')
     window_output: tf.Tensor = window_op.window(
         audio_frame, weights, window_shift)
-    _debug_print(f'window output [{detail}]: {window_output!r}')
+    _debug_print_internal(f'window output [{detail}]: {window_output!r}')
     # return window_output
 
     # pre-scale window output
     window_output = tf.reshape(window_output, [-1])
     window_scaled_output, scaling_shift = fft_ops.fft_auto_scale(window_output)
-    _debug_print(f'scaling shift [{detail}]: {scaling_shift!r}')
+    _debug_print_internal(f'scaling shift [{detail}]: {scaling_shift!r}')
     # _debug_print(f'window scaled output: {window_scaled_output!r}')
 
     # compute FFT on scaled window output
     fft_size, _ = fft_ops.get_pow2_fft_length(len(window_scaled_output))
-    _debug_print(f'fft size [{detail}]: {fft_size}')
+    _debug_print_internal(f'fft size [{detail}]: {fft_size}')
     fft_output = fft_ops.rfft(window_scaled_output, fft_size)
-    _debug_print(f'fft output [{detail}]: {fft_output!r}')
+    _debug_print_internal(f'fft output [{detail}]: {fft_output!r}')
 
     # convert fft output complex numbers to energy values
     number_of_channels = 40
@@ -89,21 +99,22 @@ class _GenerateFeature(tf.Module):
     index_start, index_end = filter_bank_ops.calc_start_end_indices(
         fft_size, sample_rate, number_of_channels,
         lower_band_limit_hz, upper_band_limit_hz)
-    _debug_print(f'index start, end [{detail}]: {index_start}, {index_end}')
+    _debug_print_internal(
+        f'index start, end [{detail}]: {index_start}, {index_end}')
     energy_output: tf.Tensor = energy_op.energy(
         fft_output, index_start, index_end)
-    _debug_print(f'energy output [{detail}]: {energy_output!r}')
+    _debug_print_internal(f'energy output [{detail}]: {energy_output!r}')
 
     # compress energy output into 40 channels
     filter_output: tf.Tensor = filter_bank_ops.filter_bank(
         energy_output, sample_rate, number_of_channels,
         lower_band_limit_hz, upper_band_limit_hz)
-    _debug_print(f'filterbank output [{detail}]: {filter_output!r}')
+    _debug_print_internal(f'filterbank output [{detail}]: {filter_output!r}')
 
     # scale down filter_output
     filter_scaled_output: tf.Tensor = filter_bank_ops.filter_bank_square_root(
         filter_output, scaling_shift)
-    _debug_print(
+    _debug_print_internal(
         f'scaled filterbank output [{detail}]: {filter_scaled_output!r}')
 
     # noise reduction
@@ -126,11 +137,11 @@ class _GenerateFeature(tf.Module):
         clamping=False,
         spectral_subtraction_bits=noise_reduction_bits,
     )
-    _debug_print(f'noise output [{detail}]: {filter_noise_output!r}')
+    _debug_print_internal(f'noise output [{detail}]: {filter_noise_output!r}')
 
     # automatic gain control (TBD)
 
-    # re-scale features from UINT32 to UINT16
+    # re-scale features from UINT32 to INT16
     # int correction_bits =
     #   MostSignificantBit32(state->fft.fft_size) - 1 - (kFilterbankBits / 2);
     #   (10 - 1 - (12 / 2))
@@ -141,7 +152,7 @@ class _GenerateFeature(tf.Module):
         filter_noise_output,
         output_scale=feature_post_scale,
         input_correction_bits=feature_pre_scale_shift)
-    _debug_print(
+    _debug_print_internal(
         f'scaled noise output [{detail}]: {feature_rescaled_output!r}')
 
     # These scaling values are derived from those used in input_data.py in the
@@ -160,7 +171,8 @@ class _GenerateFeature(tf.Module):
     # To simplify this and perform it in 32-bit integer math, we rearrange to:
     # input = (feature * 256) / (25.6 * 26.0) - 128
     # constexpr int32_t value_scale = 256;
-    # constexpr int32_t value_div = static_cast<int32_t>((25.6f * 26.0f) + 0.5f);
+    # constexpr int32_t value_div =
+    #     static_cast<int32_t>((25.6f * 26.0f) + 0.5f);
     # int32_t value =
     #     ((frontend_output.values[i] * value_scale) + (value_div / 2)) /
     #     value_div;
@@ -178,12 +190,13 @@ class _GenerateFeature(tf.Module):
     feature_output = ((tf.cast(feature_rescaled_output, tf.int32)
                       * value_scale) + int(value_div / 2))
     feature_output = tf.truncatediv(feature_output, value_div)
-    # subtraction is broken in TFLM
     feature_output += tf.constant(-128, dtype=tf.int32)
     feature_output = tf.clip_by_value(
         feature_output, clip_value_min=-128, clip_value_max=127)
     feature_output = tf.cast(feature_output, tf.int8)
-    _debug_print(f'feature output [{detail}]: {feature_output!r}')
+    _debug_print_internal(f'feature output [{detail}]: {feature_output!r}')
+
+    self._debug_single = True
 
     return feature_output
 
@@ -316,6 +329,11 @@ def _main(_):
 
   pp = AudioPreprocessor(detail=fname)
   pp.load_samples(audio_30ms_path)
+
+  #
+  # Tests take into account the inability to reset the noise estimation
+  # state during TensorFlow eager and graph execution.
+  #
   _compare_test_with_tflm_reset(
       pp,
       pp.generate_feature,
@@ -330,7 +348,7 @@ def _main(_):
       pp.generate_feature_using_graph,
       f'{fname}_features_using_graph')
 
-  print(f'\nAll [{fname}] tests PASS\n')
+  print(f'\n[{fname}]: All tests PASS\n')
 
 
 if __name__ == '__main__':
