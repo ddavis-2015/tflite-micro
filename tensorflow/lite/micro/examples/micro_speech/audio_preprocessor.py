@@ -173,11 +173,13 @@ class _GenerateFeature(tf.Module):
     # }
     # output[i] = value;
 
-    value_scale = 256
-    value_div = int((25.6 * 26) + 0.5)
+    value_scale = tf.constant(256, dtype=tf.int32)
+    value_div = tf.constant(int((25.6 * 26) + 0.5), dtype=tf.int32)
     feature_output = ((tf.cast(feature_rescaled_output, tf.int32)
-                      * value_scale) + (value_div // 2)) // value_div
-    feature_output -= 128
+                      * value_scale) + int(value_div / 2))
+    feature_output = tf.truncatediv(feature_output, value_div)
+    # subtraction is broken in TFLM
+    feature_output += tf.constant(-128, dtype=tf.int32)
     feature_output = tf.clip_by_value(
         feature_output, clip_value_min=-128, clip_value_max=127)
     feature_output = tf.cast(feature_output, tf.int8)
