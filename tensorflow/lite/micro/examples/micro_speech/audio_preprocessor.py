@@ -211,6 +211,7 @@ class AudioPreprocessor():
     self._tflm_interpreter = None
     self._feature_generator = None
     self._feature_generator_concrete_function = None
+    self._model = None
     self._samples_per_window_ms = 30
     self._samples_per_window = 0
 
@@ -230,6 +231,17 @@ class AudioPreprocessor():
       self._feature_generator_concrete_function = func.get_concrete_function(
           tf.TensorSpec(shape=shape, dtype=tf.int16))
     return self._feature_generator_concrete_function
+
+  def _get_model(self):
+    if self._model is None:
+      cf = self._get_concrete_function()
+      converter = tf.lite.TFLiteConverter.from_concrete_functions(
+          [cf], self._get_feature_generator())
+      converter.allow_custom_ops = True
+      self._model = converter.convert()
+      if _ENABLE_DEBUG.value:
+        tf.lite.experimental.Analyzer.analyze(model_content=self._model)
+    return self._model
 
   def load_samples(self, filename: Path):
     file_data = tf.io.read_file(str(filename))
@@ -251,8 +263,12 @@ class AudioPreprocessor():
     self._sample_rate = sample_rate
     self._samples_per_window = self._samples_per_window_ms * \
         (sample_rate // 1000)
+
+    # reset for new graph generation
     self._feature_generator = None
     self._feature_generator_concrete_function = None
+    self._model = None
+    self._tflm_interpreter = None
 
   @property
   def samples(self):
@@ -274,13 +290,7 @@ class AudioPreprocessor():
 
   def generate_feature_using_tflm(self, audio_frame: tf.Tensor) -> tf.Tensor:
     if self._tflm_interpreter is None:
-      cf = self._get_concrete_function()
-      converter = tf.lite.TFLiteConverter.from_concrete_functions(
-          [cf], self._get_feature_generator())
-      converter.allow_custom_ops = True
-      model = converter.convert()
-      if _ENABLE_DEBUG.value:
-        tf.lite.experimental.Analyzer.analyze(model_content=model)
+      model = self._get_model()
       self._tflm_interpreter = runtime.Interpreter.from_bytes(model)
 
     self._tflm_interpreter.set_input(audio_frame, 0)
@@ -291,6 +301,12 @@ class AudioPreprocessor():
   def reset_tflm(self):
     if self._tflm_interpreter is not None:
       self._tflm_interpreter.reset()
+
+  def generate_tflite_file(self, type_name):
+    model = self._get_model()
+    fname = Path('/tmp', 'generate_feature_' + type_name + '.tflite')
+    with open(fname, mode='wb') as file_handle:
+      file_handle.write(model)
 
 
 _FeatureGenFunc = Callable[[tf.Tensor], tf.Tensor]
@@ -349,6 +365,8 @@ def _main(_):
       f'{fname}_features_using_graph')
 
   print(f'\n[{fname}]: All tests PASS\n')
+
+  pp.generate_tflite_file('quantized')
 
 
 if __name__ == '__main__':
