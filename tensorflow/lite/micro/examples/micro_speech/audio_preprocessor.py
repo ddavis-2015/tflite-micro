@@ -253,9 +253,10 @@ class AudioPreprocessor():
                  f' sample-count={len(samples)}')
     # convert samples to INT16
     # i = (((int) ((x * 32767) + 32768.5f)) - 32768);
-    max_value = np.iinfo(np.int16).max
-    min_value = np.iinfo(np.int16).min
-    samples = ((samples * max_value) + (-min_value + 0.5)) + min_value
+    # max_value = np.iinfo(np.int16).max
+    # min_value = np.iinfo(np.int16).min
+    # samples = ((samples * max_value) + (-min_value + 0.5)) + min_value
+    samples *= 32768
     samples = tf.cast(samples, tf.int16)
     samples = tf.reshape(samples, [1, -1])
 

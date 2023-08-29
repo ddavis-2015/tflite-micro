@@ -15,12 +15,13 @@
 
 import argparse
 from collections.abc import Generator
+from collections import OrderedDict
 from typing import TextIO
 import re
 import functools
 import operator
 
-ParsedFile = dict[str, list[int]]
+ParsedFile = OrderedDict[str, list[int]]
 
 get_next_line: Generator[str] = None
 
@@ -43,6 +44,7 @@ def parse_tensor_data() -> list[int]:
 
   values_list = list(map(int, values_list))
   return values_list
+
 
 def parse_dump_data() -> list[int]:
   values_list: list[int] = []
@@ -74,7 +76,7 @@ def parse_flat_size(line: str) -> int:
 def parse_file(file: TextIO) -> ParsedFile:
   global get_next_line
   get_next_line = get_next_line_generator(file)
-  parsed_map: ParsedFile = {}
+  parsed_map: ParsedFile = OrderedDict()
   tensor_pattern = r'(?:(\w+\s*\w*) output|(feature)s) \[(\w+)\]: <tf.Tensor:'
   dump_pattern = r'### BEGIN (\w+\s*\w*) Data: (\w+)'
   tensor_re = re.compile(tensor_pattern)
@@ -126,6 +128,7 @@ def compare_parsed_files(file1: ParsedFile, file2: ParsedFile):
     if key not in file2.keys():
       continue
     if file1[key] == file2[key]:
+      print(f'key {{{key}}} matches\n')
       continue
     diff = list(map(operator.sub, file1[key], file2[key]))
     print(f'key {{{key}}} differs:\n{diff}\n')
@@ -141,8 +144,8 @@ def main():
 
   parsed_file1 = parse_file(args.file1)
   parsed_file2 = parse_file(args.file2)
-  #print(f'{parsed_file1!r}')
-  #print(f'{parsed_file2!r}')
+  # print(f'{parsed_file1!r}')
+  # print(f'{parsed_file2!r}')
   find_missing_keys(parsed_file1, parsed_file2)
   compare_parsed_files(parsed_file1, parsed_file2)
 

@@ -128,6 +128,9 @@ struct FrontendOutput _FrontendProcessSamples(struct FrontendState* state,
                                               size_t num_samples,
                                               size_t* num_samples_read,
                                               const char* detail) {
+  DumpData(samples, num_samples, "Audio Frame", detail);
+  DumpData(state->window.coefficients, num_samples, "Window Weights", detail);                                        
+
   struct FrontendOutput output;
   output.values = NULL;
   output.size = 0;
