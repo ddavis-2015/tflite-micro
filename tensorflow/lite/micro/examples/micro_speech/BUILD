@@ -70,13 +70,13 @@ generate_cc_arrays(
 
 generate_cc_arrays(
     name = "generated_micro_speech_model_cc",
-    src = "micro_speech.tflite",
+    src = "models/micro_speech_quantized.tflite",
     out = "micro_speech_model_data.cc",
 )
 
 generate_cc_arrays(
     name = "generated_micro_speech_model_hdr",
-    src = "micro_speech.tflite",
+    src = "models/micro_speech_quantized.tflite",
     out = "micro_speech_model_data.h",
 )
 
@@ -458,6 +458,16 @@ filegroup(
     srcs = glob(["testdata/*_30ms.wav"]),
 )
 
+filegroup(
+    name = "samples_1000ms",
+    srcs = glob(["testdata/*_1000ms.wav"]),
+)
+
+filegroup(
+    name = "models_tflite",
+    srcs = glob(["models/*.tflite"]),
+)
+
 py_binary(
     name = "generate_features",
     srcs = ["generate_features.py"],
@@ -478,10 +488,12 @@ py_binary(
 )
 
 py_binary(
-    name = "audio_preprocessor",
-    srcs = ["audio_preprocessor.py"],
+    name = "evaluate",
+    srcs = ["evaluate.py"],
     data = [
         ":samples_30ms",
+        ":samples_1000ms",
+        ":models_tflite",
     ],
     python_version = "PY3",
     srcs_version = "PY3",

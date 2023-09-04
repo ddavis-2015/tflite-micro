@@ -11,13 +11,15 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+"""
+Audio Sample Preprocessor
+"""
 
 from typing import Callable
 from pathlib import Path
 import tensorflow as tf
 from absl import app
 from absl import flags
-import numpy as np
 from tensorflow.python.platform import resource_loader
 from tflite_micro.python.tflite_micro.signal.ops import window_op
 from tflite_micro.python.tflite_micro.signal.ops import fft_ops
@@ -239,7 +241,7 @@ class AudioPreprocessor():
           [cf], self._get_feature_generator())
       converter.allow_custom_ops = True
       self._model = converter.convert()
-      if _ENABLE_DEBUG.value:
+      if _ENABLE_DEBUG.value != 'off':
         tf.lite.experimental.Analyzer.analyze(model_content=self._model)
     return self._model
 
@@ -272,11 +274,11 @@ class AudioPreprocessor():
     self._tflm_interpreter = None
 
   @property
-  def samples(self):
+  def samples(self) -> tf.Tensor:
     return self._samples
 
   @property
-  def sample_rate(self):
+  def sample_rate(self) -> int:
     return self._sample_rate
 
   def generate_feature(self, audio_frame: tf.Tensor) -> tf.Tensor:
@@ -339,10 +341,10 @@ def _compare_test(
 
 
 def _main(_):
-  prefix_path = resource_loader.get_path_to_datafile('')
+  prefix_path = resource_loader.get_path_to_datafile('testdata')
 
   fname = _FILE_TO_TEST.value
-  audio_30ms_path = Path(prefix_path, f'testdata/{fname}_30ms.wav')
+  audio_30ms_path = Path(prefix_path, f'{fname}_30ms.wav')
 
   pp = AudioPreprocessor(detail=fname)
   pp.load_samples(audio_30ms_path)
