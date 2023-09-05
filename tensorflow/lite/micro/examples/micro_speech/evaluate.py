@@ -13,12 +13,12 @@
 # limitations under the License.
 # =============================================================================
 """
-LSTM model evaluation for MNIST recognition
+Wake-word model evaluation with audio preprocessing
 
 Run:
-bazel build tensorflow/lite/micro/examples/mnist_lstm:evaluate
-bazel-bin/tensorflow/lite/micro/examples/mnist_lstm/evaluate
---model_path=".tflite file path" --img_path="MNIST image path"
+bazel build tensorflow/lite/micro/examples/micro_speech:evaluate
+bazel run tensorflow/lite/micro/examples/micro_speech:evaluate --
+  --sample_path="path to 1 second audio sample in WAV format"
 """
 
 
@@ -38,7 +38,6 @@ _SAMPLE_PATH = flags.DEFINE_string(
     name='sample_path',
     default=None,
     help='path for the audio sample to be predicted.',
-    required=True
 )
 
 _SAMPLE_RATE = 16000
@@ -55,10 +54,10 @@ def quantize_input_data(data, input_details):
       input_details : output of get_input_details from the tflm interpreter.
   """
   # Get input quantization parameters
-  data_type = input_details["dtype"]
-  input_quantization_parameters = input_details["quantization_parameters"]
-  input_scale, input_zero_point = input_quantization_parameters["scales"][
-      0], input_quantization_parameters["zero_points"][0]
+  data_type = input_details['dtype']
+  input_quantization_parameters = input_details['quantization_parameters']
+  input_scale, input_zero_point = input_quantization_parameters['scales'][
+      0], input_quantization_parameters['zero_points'][0]
   # quantize the input data
   data = data / input_scale + input_zero_point
   return data.astype(data_type)
@@ -75,33 +74,15 @@ def dequantize_output_data(data: np.ndarray,
   Returns:
       np.ndarray: dequantized data as float32 dtype
   """
-  output_quantization_parameters = output_details["quantization_parameters"]
-  output_scale = output_quantization_parameters["scales"][0]
-  output_zero_point = output_quantization_parameters["zero_points"][0]
+  output_quantization_parameters = output_details['quantization_parameters']
+  output_scale = output_quantization_parameters['scales'][0]
+  output_zero_point = output_quantization_parameters['zero_points'][0]
   # Caveat: tflm_output_quant need to be converted to float to avoid integer
   # overflow during dequantization
   # e.g., (tflm_output_quant -output_zero_point) and
   # (tflm_output_quant + (-output_zero_point))
   # can produce different results (int8 calculation)
-  return output_scale * (data.astype("float") - output_zero_point)
-
-
-def tflm_predict(
-        interpreter: runtime.Interpreter,
-        data: np.ndarray) -> np.ndarray:
-  """
-  Predict using the tflm interpreter
-
-  Args:
-      tflm_interpreter (Interpreter): TFLM interpreter
-      data: data to be predicted
-
-  Returns:
-      np.ndarray: predicted results from the model using TFLM interpreter
-  """
-  interpreter.set_input(data, 0)
-  interpreter.invoke()
-  return interpreter.get_output(0)
+  return output_scale * (data.astype(np.float32) - output_zero_point)
 
 
 def predict(interpreter: runtime.Interpreter,
@@ -111,7 +92,7 @@ def predict(interpreter: runtime.Interpreter,
 
   Args:
       interpreter: TFLM python interpreter instance
-      features: data to be predicted
+      features: wake-word model feature data, with shape _FEATURES_SHAPE
 
   Returns:
       np.ndarray: predicted probability (softmax) for each model category
@@ -121,13 +102,14 @@ def predict(interpreter: runtime.Interpreter,
   # # Quantize the input if the model is quantized
   # if input_details["dtype"] != np.float32:
   #   data = quantize_input_data(data, input_details)
-  interpreter.set_input(features, 0)
+  flattened_features = features.flatten().reshape([1, -1])
+  interpreter.set_input(flattened_features, 0)
   interpreter.invoke()
   tflm_output = interpreter.get_output(0)
 
   output_details = interpreter.get_output_details(0)
-  if output_details["dtype"] == np.float32:
-    return tflm_output[0].astype("float")
+  if output_details['dtype'] == np.float32:
+    return tflm_output[0].astype(np.float32)
   # Dequantize the output for quantized model
   return dequantize_output_data(tflm_output[0], output_details)
 
@@ -151,7 +133,7 @@ def generate_features(
   frame_number = 0
   end_index = start_index + window_size
 
-  # clear noise estimates
+  # reset audio preprocessor noise estimates
   audio_pp.reset_tflm()
 
   while end_index <= len(samples):
@@ -163,27 +145,18 @@ def generate_features(
     start_index += window_stride
     end_index += window_stride
     frame_number += 1
+
   return features
 
 
-def predict_sample(interpreter: runtime.Interpreter, sample_path: Path):
+def get_category_names() -> list[str]:
   """
-  Use TFLM interpreter to predict a audio sample
-
-  Args:
-      interpreter: TFLM python interpreter instance
-      audio_path: path for the audio sample that will be predicted
+  Get the list of model output category names
 
   Returns:
-      np.ndarray: predicted probability (softmax) for each model category
+      list[str]: model output category names
   """
-  audio_pp = audio_preprocessor.AudioPreprocessor()
-  audio_pp.load_samples(sample_path)
-  assert audio_pp.sample_rate == _SAMPLE_RATE, \
-      f'Audio sample rate must be {_SAMPLE_RATE} per second'
-  features = generate_features(audio_pp)
-  flattened_features = features.flatten().reshape([1, -1])
-  return features, predict(interpreter, flattened_features)
+  return ['silence', 'unknown', 'yes', 'no']
 
 
 def main(_):
@@ -193,15 +166,25 @@ def main(_):
   model_prefix_path = resource_loader.get_path_to_datafile('models')
   model_path = Path(model_prefix_path, 'micro_speech_quantized.tflite')
 
+  audio_pp = audio_preprocessor.AudioPreprocessor()
+  audio_pp.load_samples(sample_path)
+  assert audio_pp.sample_rate == _SAMPLE_RATE, \
+      f'Audio sample rate must be {_SAMPLE_RATE} per second'
+  features = generate_features(audio_pp)
+
   tflm_interpreter = runtime.Interpreter.from_file(model_path)
-  features, category_probabilities = predict_sample(
-      tflm_interpreter, sample_path)
+
   frame_number = 0
+  test_features = np.zeros(_FEATURES_SHAPE, dtype=np.int8)
   for feature in features:
-    logging.info('Frame #%d: %s', frame_number, str(feature))
+    test_features[frame_number] = feature
+    category_probabilities = predict(tflm_interpreter, test_features)
+    logging.info('Frame #%d: %s', frame_number, str(category_probabilities))
     frame_number += 1
+
+  category_probabilities = predict(tflm_interpreter, features)
   predicted_category = np.argmax(category_probabilities)
-  category_names = ['silence', 'unknown', 'yes', 'no']
+  category_names = get_category_names()
   logging.info('Model predicts the audio sample as <%s> with probability %.2f',
                category_names[predicted_category],
                category_probabilities[predicted_category])

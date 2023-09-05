@@ -488,11 +488,29 @@ py_binary(
 )
 
 py_binary(
+    name = "audio_preprocessor",
+    srcs = ["audio_preprocessor.py"],
+    data = [
+        ":samples_30ms",
+    ],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        "@absl_py//absl:app",
+        "@absl_py//absl/flags",
+        "@absl_py//absl/logging",
+        requirement("numpy"),
+        requirement("tensorflow-cpu"),
+        "//python/tflite_micro/signal:ops",
+        "//python/tflite_micro/signal/utils:util",
+        "//python/tflite_micro:runtime",
+    ],
+)
+
+py_binary(
     name = "evaluate",
     srcs = ["evaluate.py"],
     data = [
-        ":samples_30ms",
-        ":samples_1000ms",
         ":models_tflite",
     ],
     python_version = "PY3",
@@ -506,5 +524,20 @@ py_binary(
         "//python/tflite_micro/signal:ops",
         "//python/tflite_micro/signal/utils:util",
         "//python/tflite_micro:runtime",
+        ":audio_preprocessor",
+    ],
+)
+
+py_binary(
+    name = "evaluate_test",
+    srcs = ["evaluate_test.py"],
+    data = [
+        ":samples_1000ms",
+        ":models_tflite",
+    ],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    deps = [
+        ":evaluate",
     ],
 )

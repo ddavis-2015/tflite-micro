@@ -1,0 +1,63 @@
+# Copyright 2023 The TensorFlow Authors. All Rights Reserved.
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+# =============================================================================
+
+import numpy as np
+from pathlib import Path
+
+from tensorflow.python.framework import test_util
+from tensorflow.python.platform import resource_loader
+from tensorflow.python.platform import test
+from tflite_micro.python.tflite_micro import runtime
+import evaluate
+import audio_preprocessor
+
+
+class MicroSpeechTest(test_util.TensorFlowTestCase):
+
+  def setUp(self):
+    model_prefix_path = resource_loader.get_path_to_datafile('models')
+    sample_prefix_path = resource_loader.get_path_to_datafile('testdata')
+    model_path = Path(model_prefix_path, 'micro_speech_quantized.tflite')
+    no_sample_path = Path(sample_prefix_path, 'no_1000ms.wav')
+    yes_sample_path = Path(sample_prefix_path, 'yes_1000ms.wav')
+    self.tflm_interpreter = runtime.Interpreter.from_file(model_path)
+    self.test_data = {'no': no_sample_path, 'yes': yes_sample_path}
+    self.sample_rate = 16000
+    self.audio_pp = audio_preprocessor.AudioPreprocessor()
+
+  def testModelAccuracy(self):
+    for label, sample_path in self.test_data.items():
+      # Load audio sample data
+      self.audio_pp.load_samples(sample_path)
+      self.assertEqual(self.sample_rate, self.audio_pp.sample_rate)
+
+      # Generate feature data from audio samples.
+      # Note that the noise estimate is reset each time generate_features()
+      # is called.
+      features = evaluate.generate_features(self.audio_pp)
+
+      # Run model inference (quantized) on the feature data
+      category_probabilities = evaluate.predict(
+          self.tflm_interpreter, features)
+
+      # Check the prediction result
+      predicted_category = np.argmax(category_probabilities)
+      category_names = evaluate.get_category_names()
+      # Check the prediction
+      self.assertEqual(category_names[predicted_category], label)
+
+
+if __name__ == "__main__":
+  test.main()
