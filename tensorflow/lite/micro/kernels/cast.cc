@@ -63,6 +63,9 @@ TfLiteStatus copyToTensor(TfLiteContext* context, const FromT* in,
     case kTfLiteInt32:
       copyCast(in, out->data.i32, num_elements);
       break;
+    case kTfLiteUInt32:
+      copyCast(in, out->data.u32, num_elements);
+      break;
     case kTfLiteFloat32:
       copyCast(in, tflite::micro::GetTensorData<float>(out), num_elements);
       break;

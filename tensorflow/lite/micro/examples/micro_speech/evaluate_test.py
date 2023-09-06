@@ -12,6 +12,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 # =============================================================================
+"""
+Wake-word model testing, with audio preprocessing using MicroInterpreter
+
+Run:
+bazel build tensorflow/lite/micro/examples/micro_speech:evaluate_test
+bazel-bin/tensorflow/lite/micro/examples/micro_speech/evaluate_test
+"""
 
 import numpy as np
 from pathlib import Path
@@ -59,5 +66,5 @@ class MicroSpeechTest(test_util.TensorFlowTestCase):
       self.assertEqual(category_names[predicted_category], label)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
   test.main()

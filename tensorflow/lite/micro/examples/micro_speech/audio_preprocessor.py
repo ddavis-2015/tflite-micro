@@ -99,6 +99,7 @@ class _GenerateFeature(tf.Module):
     number_of_channels = 40
     lower_band_limit_hz = 125.0
     upper_band_limit_hz = 7500.0
+    # calc_start_end_indices should be moved to the constructor for efficiency
     index_start, index_end = filter_bank_ops.calc_start_end_indices(
         fft_size, sample_rate, number_of_channels,
         lower_band_limit_hz, upper_band_limit_hz)
@@ -106,15 +107,19 @@ class _GenerateFeature(tf.Module):
         f'index start, end [{detail}]: {index_start}, {index_end}')
     energy_output: tf.Tensor = energy_op.energy(
         fft_output, index_start, index_end)
-    # energy op does not zero indices outside [index_start,index_end)
+    # Energy op does not zero indices outside [index_start,index_end).
+    # The following operations to zero portions of the energy op output
+    # could be much more efficiently performed inside the energy op C++
+    # code.
+    # Need to convert to tf.int32 or the TfLite converter will not use
+    # the correct ops.
+    energy_output = tf.cast(energy_output, tf.int32)
     zeros_head = tf.zeros(index_start, dtype=tf.int32)
     zeros_tail = tf.zeros(
         energy_output.shape.num_elements() - index_end,
         dtype=tf.int32)
-    energy_slice = tf.cast(
-        energy_output[index_start:index_end], dtype=tf.int32)
+    energy_slice = energy_output[index_start:index_end]
     energy_output = tf.concat([zeros_head, energy_slice, zeros_tail], 0)
-    # energy_output should be tf.uint32, but no CAST support in TFLM
     energy_output = tf.cast(energy_output, dtype=tf.uint32)
     _debug_print_internal(f'energy output [{detail}]: {energy_output!r}')
 

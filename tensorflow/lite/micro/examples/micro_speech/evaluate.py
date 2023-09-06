@@ -13,18 +13,17 @@
 # limitations under the License.
 # =============================================================================
 """
-Wake-word model evaluation with audio preprocessing
+Wake-word model evaluation, with audio preprocessing using MicroInterpreter
 
 Run:
 bazel build tensorflow/lite/micro/examples/micro_speech:evaluate
-bazel run tensorflow/lite/micro/examples/micro_speech:evaluate --
+bazel-bin/tensorflow/lite/micro/examples/micro_speech/evaluate
   --sample_path="path to 1 second audio sample in WAV format"
 """
 
 
 from absl import app
 from absl import flags
-from absl import logging
 import numpy as np
 from pathlib import Path
 
@@ -36,7 +35,7 @@ import audio_preprocessor
 
 _SAMPLE_PATH = flags.DEFINE_string(
     name='sample_path',
-    default=None,
+    default="",
     help='path for the audio sample to be predicted.',
 )
 
@@ -179,15 +178,15 @@ def main(_):
   for feature in features:
     test_features[frame_number] = feature
     category_probabilities = predict(tflm_interpreter, test_features)
-    logging.info('Frame #%d: %s', frame_number, str(category_probabilities))
+    print(f'Frame #{frame_number}: {str(category_probabilities)}')
     frame_number += 1
 
   category_probabilities = predict(tflm_interpreter, features)
   predicted_category = np.argmax(category_probabilities)
   category_names = get_category_names()
-  logging.info('Model predicts the audio sample as <%s> with probability %.2f',
-               category_names[predicted_category],
-               category_probabilities[predicted_category])
+  print('Model predicts the audio sample as'
+        f' <{category_names[predicted_category]}>'
+        f' with probability {category_probabilities[predicted_category]:.2f}')
 
 
 if __name__ == '__main__':
