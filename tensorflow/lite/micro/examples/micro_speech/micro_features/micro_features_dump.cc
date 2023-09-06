@@ -15,6 +15,8 @@ limitations under the License.
 
 #include <stdio.h>
 
+#include <algorithm>
+#include <iterator>
 #include <type_traits>
 
 #include "tensorflow/lite/c/common.h"
@@ -109,7 +111,7 @@ TfLiteStatus _InitializeMicroFeatures() {
   config.noise_reduction.even_smoothing = 0.025;
   config.noise_reduction.odd_smoothing = 0.06;
   config.noise_reduction.min_signal_remaining = 0.05;
-  config.pcan_gain_control.enable_pcan = 0;
+  config.pcan_gain_control.enable_pcan = 1;
   config.pcan_gain_control.strength = 0.95;
   config.pcan_gain_control.offset = 80.0;
   config.pcan_gain_control.gain_bits = 21;
@@ -129,7 +131,7 @@ struct FrontendOutput _FrontendProcessSamples(struct FrontendState* state,
                                               size_t* num_samples_read,
                                               const char* detail) {
   DumpData(samples, num_samples, "Audio Frame", detail);
-  DumpData(state->window.coefficients, num_samples, "Window Weights", detail);                                        
+  DumpData(state->window.coefficients, num_samples, "Window Weights", detail);
 
   struct FrontendOutput output;
   output.values = NULL;
@@ -158,6 +160,9 @@ struct FrontendOutput _FrontendProcessSamples(struct FrontendState* state,
                                       energy);
   fprintf(stderr, "start index %d, end index %d [%s]\n",
           state->filterbank.start_index, state->filterbank.end_index, detail);
+  std::fill_n(energy, state->filterbank.start_index, 0);
+  std::fill_n(energy + state->filterbank.end_index,
+              (state->fft.fft_size / 2 + 1) - state->filterbank.end_index, 0);
   DumpData(energy, state->fft.fft_size / 2 + 1, "Energy", detail);
 
   FilterbankAccumulateChannels(&state->filterbank, energy);

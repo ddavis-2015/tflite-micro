@@ -32,8 +32,8 @@ gen_filter_bank_ops = util.load_custom_op('filter_bank_ops.so')
 # the default Python 'float' type. For the same reason, the function freq_to_mel
 # wraps the same FreqToMel() C function used by Speech Micro.
 
-FILTER_BANK_ALIGNMENT = 1
-FILTER_BANK_CHANNEL_BLOCK_SIZE = 1
+FILTER_BANK_ALIGNMENT = 4
+FILTER_BANK_CHANNEL_BLOCK_SIZE = 4
 FILTER_BANK_WEIGHT_SCALING_BITS = 12
 
 

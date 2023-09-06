@@ -25,6 +25,7 @@ from tflite_micro.python.tflite_micro.signal.ops import window_op
 from tflite_micro.python.tflite_micro.signal.ops import fft_ops
 from tflite_micro.python.tflite_micro.signal.ops import energy_op
 from tflite_micro.python.tflite_micro.signal.ops import filter_bank_ops
+from tflite_micro.python.tflite_micro.signal.ops import pcan
 from tflite_micro.python.tflite_micro import runtime
 
 
@@ -105,6 +106,16 @@ class _GenerateFeature(tf.Module):
         f'index start, end [{detail}]: {index_start}, {index_end}')
     energy_output: tf.Tensor = energy_op.energy(
         fft_output, index_start, index_end)
+    # energy op does not zero indices outside [index_start,index_end)
+    zeros_head = tf.zeros(index_start, dtype=tf.int32)
+    zeros_tail = tf.zeros(
+        energy_output.shape.num_elements() - index_end,
+        dtype=tf.int32)
+    energy_slice = tf.cast(
+        energy_output[index_start:index_end], dtype=tf.int32)
+    energy_output = tf.concat([zeros_head, energy_slice, zeros_tail], 0)
+    # energy_output should be tf.uint32, but no CAST support in TFLM
+    energy_output = tf.cast(energy_output, dtype=tf.uint32)
     _debug_print_internal(f'energy output [{detail}]: {energy_output!r}')
 
     # compress energy output into 40 channels
@@ -141,7 +152,11 @@ class _GenerateFeature(tf.Module):
     )
     _debug_print_internal(f'noise output [{detail}]: {filter_noise_output!r}')
 
-    # automatic gain control (TBD)
+    # automatic gain control (PCAN)
+    # config.pcan_gain_control.enable_pcan = 1;
+    # config.pcan_gain_control.strength = 0.95;
+    # config.pcan_gain_control.offset = 80.0;
+    # config.pcan_gain_control.gain_bits = 21;
 
     # re-scale features from UINT32 to INT16
     # int correction_bits =
