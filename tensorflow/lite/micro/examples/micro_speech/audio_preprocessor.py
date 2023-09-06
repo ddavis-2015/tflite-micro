@@ -25,7 +25,7 @@ from tflite_micro.python.tflite_micro.signal.ops import window_op
 from tflite_micro.python.tflite_micro.signal.ops import fft_ops
 from tflite_micro.python.tflite_micro.signal.ops import energy_op
 from tflite_micro.python.tflite_micro.signal.ops import filter_bank_ops
-from tflite_micro.python.tflite_micro.signal.ops import pcan
+from tflite_micro.python.tflite_micro.signal.ops import pcan_op
 from tflite_micro.python.tflite_micro import runtime
 
 
@@ -140,33 +140,46 @@ class _GenerateFeature(tf.Module):
     even_smoothing = 0.025
     odd_smoothing = 0.06
     min_signal_remaining = 0.05
-    filter_noise_output, _ = filter_bank_ops.filter_bank_spectral_subtraction(
-        filter_scaled_output,
-        num_channels=number_of_channels,
-        smoothing=even_smoothing,
-        alternate_smoothing=odd_smoothing,
-        smoothing_bits=smoothing_bits,
-        min_signal_remaining=min_signal_remaining,
-        clamping=False,
-        spectral_subtraction_bits=noise_reduction_bits,
-    )
+    filter_noise_output, filter_noise_estimate = \
+        filter_bank_ops.filter_bank_spectral_subtraction(
+            filter_scaled_output,
+            num_channels=number_of_channels,
+            smoothing=even_smoothing,
+            alternate_smoothing=odd_smoothing,
+            smoothing_bits=smoothing_bits,
+            min_signal_remaining=min_signal_remaining,
+            clamping=False,
+            spectral_subtraction_bits=noise_reduction_bits,
+        )
     _debug_print_internal(f'noise output [{detail}]: {filter_noise_output!r}')
 
     # automatic gain control (PCAN)
-    # config.pcan_gain_control.enable_pcan = 1;
     # config.pcan_gain_control.strength = 0.95;
     # config.pcan_gain_control.offset = 80.0;
     # config.pcan_gain_control.gain_bits = 21;
-
-    # re-scale features from UINT32 to INT16
     # int correction_bits =
     #   MostSignificantBit32(state->fft.fft_size) - 1 - (kFilterbankBits / 2);
     #   (10 - 1 - (12 / 2))
+    pcan_strength = 0.95
+    pcan_offset = 80.0
+    pcan_gain_bits = 21
+    correction_bits = 3
+    filter_agc_output = pcan_op.pcan(filter_noise_output,
+                                     filter_noise_estimate,
+                                     strength=pcan_strength,
+                                     offset=pcan_offset,
+                                     gain_bits=pcan_gain_bits,
+                                     smoothing_bits=smoothing_bits,
+                                     input_correction_bits=correction_bits)
+    _debug_print_internal(
+        f'AGC Noise output [{detail}]: {filter_agc_output!r}')
+
+    # re-scale features from UINT32 to INT16
     feature_post_scale_shift = 6
     feature_post_scale = 1 << feature_post_scale_shift
-    feature_pre_scale_shift = 3
+    feature_pre_scale_shift = correction_bits
     feature_rescaled_output: tf.Tensor = filter_bank_ops.filter_bank_log(
-        filter_noise_output,
+        filter_agc_output,
         output_scale=feature_post_scale,
         input_correction_bits=feature_pre_scale_shift)
     _debug_print_internal(

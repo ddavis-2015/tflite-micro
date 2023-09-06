@@ -42,6 +42,7 @@ py_library(
         "//python/tflite_micro:runtime",
         "//python/tflite_micro/signal:ops",
     ],
+    visibility = ["//visibility:public"],
 )
 
 pybind_extension(
