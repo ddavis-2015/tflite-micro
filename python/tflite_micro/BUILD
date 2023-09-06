@@ -1,5 +1,7 @@
+load("@rules_python//python:defs.bzl", "py_library", "py_test")
 load("@pybind11_bazel//:build_defs.bzl", "pybind_extension")
 load("//python:py_namespace.bzl", "py_namespace")
+load("//tools:expand_stamp_vars.bzl", "expand_stamp_vars")
 load("@rules_python//python:packaging.bzl", "py_package", "py_wheel")
 load("@tflm_pip_deps//:requirements.bzl", "requirement")
 load(
@@ -70,9 +72,7 @@ py_library(
     srcs = [
         "runtime.py",
     ],
-    data = [
-        ":_runtime.so",
-    ],
+    data = [":_runtime.so"],
     srcs_version = "PY3",
     visibility = ["//visibility:public"],
     deps = [
@@ -91,9 +91,10 @@ py_test(
         "noubsan",
     ],
     deps = [
+        ":runtime",
         requirement("numpy"),
         requirement("tensorflow-cpu"),
-        ":runtime",
+        "//tensorflow/lite/micro/examples/recipes:add_four_numbers",
         "//tensorflow/lite/micro/testing:generate_test_models_lib",
     ],
 )
@@ -106,6 +107,14 @@ py_library(
     data = [
         "sine_float.tflite",
     ],
+)
+
+# Generate a version attribute, imported as tflite_micro.__version__, using
+# stamp (a.k.a. workspace status) variables.
+expand_stamp_vars(
+    name = "version",
+    out = "_version.py",
+    template = "_version.py.in",
 )
 
 # Collect the `deps` and their transitive dependences together into a set of
@@ -128,6 +137,7 @@ py_package(
     deps = [
         ":postinstall_check",
         ":runtime",
+        ":version",
     ],
 )
 
@@ -150,16 +160,33 @@ py_namespace(
     ],
 )
 
+expand_stamp_vars(
+    name = "description_file",
+    out = "README.pypi.md",
+    template = "README.pypi.md.in",
+)
+
 py_wheel(
     name = "whl",
+    # This macro yields additional targets:
+    #
+    # - whl.publish: publish the package to PyPI via a command like:
+    #
+    #     TWINE_USERNAME=__token__ TWINE_PASSWORD=pypi-***  \
+    #     bazel run //python/tflite_micro:whl.publish -- --repository testpypi
+    #
+    description_file = ":description_file",
     distribution = "tflite_micro",
     requires = [
         "flatbuffers",
         "numpy",
         "tensorflow",
     ],
+    stamp = 1,  # 1 == always stamp
     strip_path_prefixes = [package_name()],
-    version = "0.1.0",
+    summary = "TensorFlow Lite for Microcontrollers",
+    twine = "@tflm_pip_deps_twine//:pkg",
+    version = "{BUILD_EMBED_LABEL}.dev{STABLE_GIT_COMMIT_TIME}",
     deps = [
         ":namespace",
     ],

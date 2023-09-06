@@ -1,10 +1,9 @@
+load("@rules_python//python:defs.bzl", "py_library", "py_test")
 load("//python/tflite_micro/signal:tflm_signal.bzl", "py_tflm_signal_library")
 load("//tensorflow:extra_rules.bzl", "tflm_signal_friends")
 load("@tflm_pip_deps//:requirements.bzl", "requirement")
 
-package(
-    licenses = ["notice"],
-)
+package(licenses = ["notice"])
 
 package_group(
     name = "signal_friends",
@@ -21,6 +20,7 @@ cc_library(
         ":filter_bank_ops_cc",
         ":framer_op_cc",
         ":overlap_add_op_cc",
+        ":pcan_op_cc",
         ":stacker_op_cc",
         ":window_op_cc",
     ],
@@ -42,6 +42,7 @@ py_library(
         ":filter_bank_ops",
         ":framer_op",
         ":overlap_add_op",
+        ":pcan_op",
         ":stacker_op",
         ":window_op",
     ],
@@ -64,9 +65,9 @@ py_test(
     srcs_version = "PY3",
     deps = [
         ":delay_op",
-        "//python/tflite_micro/signal/utils:util",
         requirement("numpy"),
         requirement("tensorflow-cpu"),
+        "//python/tflite_micro/signal/utils:util",
     ],
 )
 
@@ -90,9 +91,9 @@ py_test(
     srcs_version = "PY3",
     deps = [
         ":energy_op",
-        "//python/tflite_micro/signal/utils:util",
         requirement("numpy"),
         requirement("tensorflow-cpu"),
+        "//python/tflite_micro/signal/utils:util",
     ],
 )
 
@@ -116,9 +117,9 @@ py_test(
     srcs_version = "PY3",
     deps = [
         ":fft_ops",
-        "//python/tflite_micro/signal/utils:util",
         requirement("numpy"),
         requirement("tensorflow-cpu"),
+        "//python/tflite_micro/signal/utils:util",
     ],
 )
 
@@ -150,9 +151,9 @@ py_test(
     srcs_version = "PY3",
     deps = [
         ":filter_bank_ops",
-        "//python/tflite_micro/signal/utils:util",
         requirement("numpy"),
         requirement("tensorflow-cpu"),
+        "//python/tflite_micro/signal/utils:util",
     ],
 )
 
@@ -176,9 +177,9 @@ py_test(
     srcs_version = "PY3",
     deps = [
         ":framer_op",
-        "//python/tflite_micro/signal/utils:util",
         requirement("numpy"),
         requirement("tensorflow-cpu"),
+        "//python/tflite_micro/signal/utils:util",
     ],
 )
 
@@ -199,10 +200,43 @@ py_test(
     srcs_version = "PY3",
     deps = [
         ":overlap_add_op",
-        "//python/tflite_micro/signal/utils:util",
         "@absl_py//absl/testing:parameterized",
         requirement("numpy"),
         requirement("tensorflow-cpu"),
+        "//python/tflite_micro/signal/utils:util",
+    ],
+)
+
+py_tflm_signal_library(
+    name = "pcan_op",
+    srcs = ["ops/pcan_op.py"],
+    cc_op_defs = ["//signal/tensorflow_core/ops:pcan_op"],
+    cc_op_kernels = [
+        "//signal/tensorflow_core/kernels:pcan_kernel",
+    ],
+    deps = [
+        "//python/tflite_micro/signal/utils:wide_dynamic_func_lut",
+    ],
+)
+
+py_test(
+    name = "pcan_op_test",
+    srcs = ["ops/pcan_op_test.py"],
+    data = [
+        "//python/tflite_micro/signal/ops/testdata:pcan_op_test1.txt",
+    ],
+    python_version = "PY3",
+    srcs_version = "PY3",
+    tags = [
+        "noasan",
+        "nomsan",
+        "noubsan",
+    ],
+    deps = [
+        ":pcan_op",
+        requirement("numpy"),
+        requirement("tensorflow-cpu"),
+        "//python/tflite_micro/signal/utils:util",
     ],
 )
 
@@ -226,9 +260,9 @@ py_test(
     srcs_version = "PY3",
     deps = [
         ":stacker_op",
-        "//python/tflite_micro/signal/utils:util",
         requirement("numpy"),
         requirement("tensorflow-cpu"),
+        "//python/tflite_micro/signal/utils:util",
     ],
 )
 
@@ -251,8 +285,8 @@ py_test(
     srcs_version = "PY3",
     deps = [
         ":window_op",
-        "//python/tflite_micro/signal/utils:util",
         requirement("numpy"),
         requirement("tensorflow-cpu"),
+        "//python/tflite_micro/signal/utils:util",
     ],
 )

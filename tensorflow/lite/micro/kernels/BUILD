@@ -266,6 +266,7 @@ tflm_kernel_cc_library(
         "squared_difference.cc",
         "squeeze.cc",
         "strided_slice.cc",
+        "strided_slice_common.cc",
         "sub.cc",
         "sub_common.cc",
         "svdf.cc",
@@ -303,6 +304,7 @@ tflm_kernel_cc_library(
         "reduce.h",
         "reshape.h",
         "softmax.h",
+        "strided_slice.h",
         "sub.h",
         "svdf.h",
     ] + select({
