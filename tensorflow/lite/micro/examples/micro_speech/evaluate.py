@@ -35,7 +35,7 @@ import audio_preprocessor
 
 _SAMPLE_PATH = flags.DEFINE_string(
     name='sample_path',
-    default="",
+    default='',
     help='path for the audio sample to be predicted.',
 )
 
@@ -178,7 +178,13 @@ def main(_):
   for feature in features:
     test_features[frame_number] = feature
     category_probabilities = predict(tflm_interpreter, test_features)
-    print(f'Frame #{frame_number}: {str(category_probabilities)}')
+    category_probabilities_str = '['
+    for i in range(len(category_probabilities)):
+      if i > 0:
+        category_probabilities_str += ', '
+      category_probabilities_str += f'{category_probabilities[i]:.4f}'
+    category_probabilities_str += ']'
+    print(f'Frame #{frame_number}: {category_probabilities_str}')
     frame_number += 1
 
   category_probabilities = predict(tflm_interpreter, features)
