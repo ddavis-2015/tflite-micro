@@ -20,8 +20,8 @@ limitations under the License.
 
 #include "tensorflow/lite/core/c/common.h"
 #include "tensorflow/lite/micro/examples/micro_speech/micro_model_settings.h"
-#include "tensorflow/lite/micro/examples/micro_speech/models/audio_preprocessor_int8_model_data.h"
-#include "tensorflow/lite/micro/examples/micro_speech/models/micro_speech_int8_model_data.h"
+#include "tensorflow/lite/micro/examples/micro_speech/models/audio_preprocessor_quantized_model_data.h"
+#include "tensorflow/lite/micro/examples/micro_speech/models/micro_speech_quantized_model_data.h"
 #include "tensorflow/lite/micro/examples/micro_speech/testdata/no_1000ms_audio_data.h"
 #include "tensorflow/lite/micro/examples/micro_speech/testdata/noise_1000ms_audio_data.h"
 #include "tensorflow/lite/micro/examples/micro_speech/testdata/silence_1000ms_audio_data.h"
@@ -36,7 +36,7 @@ namespace {
 // Arena size is a guesstimate, followed by use of
 // MicroInterpreter::arena_used_bytes() on both the AudioPreprocessor and
 // MicriSpeech models and using the larger of the two results.
-constexpr size_t kArenaSize = 11600;
+constexpr size_t kArenaSize = 28580;  // xtensa p6
 uint8_t g_arena[kArenaSize];
 
 using Features = int8_t[kFeatureCount][kFeatureSize];
@@ -85,7 +85,7 @@ TfLiteStatus LoadMicroSpeechModelAndPerformInference(
   // Map the model into a usable data structure. This doesn't involve any
   // copying or parsing, it's a very lightweight operation.
   const tflite::Model* model =
-      ::tflite::GetModel(g_micro_speech_quantized_model_data);
+      tflite::GetModel(g_micro_speech_quantized_model_data);
   TFLITE_CHECK_EQ(model->version(), TFLITE_SCHEMA_VERSION);
 
   MicroSpeechOpResolver op_resolver;
@@ -137,7 +137,7 @@ TfLiteStatus GenerateSingleFeature(const int16_t* audio_data,
                                    tflite::MicroInterpreter* interpreter) {
   TfLiteTensor* input = interpreter->input(0);
   TFLITE_CHECK_NE(input, nullptr);
-  // check input shape is compatible our audio sample size
+  // check input shape is compatible with our audio sample size
   TFLITE_CHECK_EQ(kAudioSampleDurationCount, audio_data_size);
   TFLITE_CHECK_EQ(kAudioSampleDurationCount,
                   input->dims->data[input->dims->size - 1]);
@@ -162,7 +162,7 @@ TfLiteStatus GenerateFeatures(const int16_t* audio_data,
   // Map the model into a usable data structure. This doesn't involve any
   // copying or parsing, it's a very lightweight operation.
   const tflite::Model* model =
-      ::tflite::GetModel(g_audio_preprocessor_quantized_model_data);
+      tflite::GetModel(g_audio_preprocessor_quantized_model_data);
   TFLITE_CHECK_EQ(model->version(), TFLITE_SCHEMA_VERSION);
 
   AudioPreprocessorOpResolver op_resolver;

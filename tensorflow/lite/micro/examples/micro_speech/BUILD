@@ -85,25 +85,25 @@ generate_cc_arrays(
 generate_cc_arrays(
     name = "generated_micro_speech_model_cc",
     src = "models/micro_speech_quantized.tflite",
-    out = "models/micro_speech_int8_model_data.cc",
+    out = "models/micro_speech_quantized_model_data.cc",
 )
 
 generate_cc_arrays(
     name = "generated_micro_speech_model_hdr",
     src = "models/micro_speech_quantized.tflite",
-    out = "models/micro_speech_int8_model_data.h",
+    out = "models/micro_speech_quantized_model_data.h",
 )
 
 generate_cc_arrays(
     name = "generated_audio_preprocessor_model_cc",
     src = "models/audio_preprocessor_quantized.tflite",
-    out = "models/audio_preprocessor_int8_model_data.cc",
+    out = "models/audio_preprocessor_quantized_model_data.cc",
 )
 
 generate_cc_arrays(
     name = "generated_audio_preprocessor_model_hdr",
     src = "models/audio_preprocessor_quantized.tflite",
-    out = "models/audio_preprocessor_int8_model_data.h",
+    out = "models/audio_preprocessor_quantized_model_data.h",
 )
 
 cc_library(
