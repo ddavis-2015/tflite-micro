@@ -1,6 +1,4 @@
 
-
-
 MICRO_SPEECH_TEST_SRCS := \
 $(TENSORFLOW_ROOT)tensorflow/lite/micro/examples/micro_speech/micro_speech_test.cc
 
@@ -10,32 +8,6 @@ $(TENSORFLOW_ROOT)tensorflow/lite/micro/examples/micro_speech/micro_model_settin
 MICRO_SPEECH_SRCS := $(MICRO_SPEECH_TEST_SRCS)
 
 MICRO_SPEECH_HDRS := $(MICRO_SPEECH_TEST_HDRS)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 MICRO_SPEECH_GENERATOR_INPUTS := \
 $(TENSORFLOW_ROOT)tensorflow/lite/micro/examples/micro_speech/models/micro_speech_quantized.tflite \
@@ -61,12 +33,10 @@ $(GENERATED_SRCS_DIR)$(TENSORFLOW_ROOT)tensorflow/lite/micro/examples/micro_spee
 $(GENERATED_SRCS_DIR)$(TENSORFLOW_ROOT)tensorflow/lite/micro/examples/micro_speech/testdata/silence_1000ms_audio_data.h \
 $(GENERATED_SRCS_DIR)$(TENSORFLOW_ROOT)tensorflow/lite/micro/examples/micro_speech/testdata/noise_1000ms_audio_data.h
 
-
 # TODO(b/161489252): Disabling warnings for this example until we have a better
 # way to build third_party code with a reduced list of CFLAGS.
 # Xtensa hifi5/hifi4 xa_nnlib
 CCFLAGS := $(filter-out $(CC_WARNINGS),$(CCFLAGS))
-
 
 # Tests loading and running a speech model.
 $(eval $(call microlite_test,micro_speech_test,\
@@ -76,24 +46,12 @@ $(MICRO_SPEECH_TEST_SRCS),$(MICRO_SPEECH_TEST_HDRS),$(MICRO_SPEECH_GENERATOR_INP
 $(eval $(call microlite_test,micro_speech,\
 $(MICRO_SPEECH_SRCS),$(MICRO_SPEECH_HDRS),$(MICRO_SPEECH_GENERATOR_INPUTS)))
 
-
-
-
-
-
-
-
-
-
 # Add sources and headers generated from $(MICRO_SPEECH_GENERATOR_INPUTS).
 MICRO_SPEECH_SRCS += $(MICRO_SPEECH_GENERATED_SRCS)
 MICRO_SPEECH_HDRS += $(MICRO_SPEECH_GENERATED_HDRS)
-
 
 list_micro_speech_example_sources:
 	@echo $(MICRO_SPEECH_SRCS)
 
 list_micro_speech_example_headers:
 	@echo $(MICRO_SPEECH_HDRS)
-
-

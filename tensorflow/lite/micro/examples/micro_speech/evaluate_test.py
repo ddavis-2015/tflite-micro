@@ -35,18 +35,22 @@ class MicroSpeechTest(test_util.TensorFlowTestCase):
 
   def setUp(self):
     model_prefix_path = resource_loader.get_path_to_datafile('models')
-    sample_prefix_path = resource_loader.get_path_to_datafile('testdata')
+    self.sample_prefix_path = resource_loader.get_path_to_datafile('testdata')
     model_path = Path(model_prefix_path, 'micro_speech_quantized.tflite')
-    no_sample_path = Path(sample_prefix_path, 'no_1000ms.wav')
-    yes_sample_path = Path(sample_prefix_path, 'yes_1000ms.wav')
     self.tflm_interpreter = runtime.Interpreter.from_file(model_path)
-    self.test_data = {'no': no_sample_path, 'yes': yes_sample_path}
+    self.test_data = [
+        ('no', 'no_1000ms.wav'),
+        ('yes', 'yes_1000ms.wav'),
+        ('silence', 'noise_1000ms.wav'),
+        ('silence', 'silence_1000ms.wav'),
+    ]
     self.sample_rate = 16000
     self.audio_pp = audio_preprocessor.AudioPreprocessor()
 
   def testModelAccuracy(self):
-    for label, sample_path in self.test_data.items():
+    for label, sample_name in self.test_data:
       # Load audio sample data
+      sample_path = Path(self.sample_prefix_path, sample_name)
       self.audio_pp.load_samples(sample_path)
       self.assertEqual(self.sample_rate, self.audio_pp.sample_rate)
 
