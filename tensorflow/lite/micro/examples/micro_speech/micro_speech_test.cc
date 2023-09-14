@@ -35,7 +35,7 @@ namespace {
 
 // Arena size is a guesstimate, followed by use of
 // MicroInterpreter::arena_used_bytes() on both the AudioPreprocessor and
-// MicriSpeech models and using the larger of the two results.
+// MicroSpeech models and using the larger of the two results.
 constexpr size_t kArenaSize = 28580;  // xtensa p6
 uint8_t g_arena[kArenaSize];
 
@@ -180,7 +180,7 @@ TfLiteStatus GenerateFeatures(const int16_t* audio_data,
          feature_index < kFeatureCount) {
     TF_LITE_ENSURE_STATUS(
         GenerateSingleFeature(audio_data, kAudioSampleDurationCount,
-                              &g_features[feature_index][0], &interpreter));
+                              (*features_output)[feature_index], &interpreter));
     feature_index++;
     audio_data += kAudioSampleStrideCount;
     remaining_samples -= kAudioSampleStrideCount;
