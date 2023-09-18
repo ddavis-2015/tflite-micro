@@ -39,10 +39,7 @@ _SAMPLE_PATH = flags.DEFINE_string(
     help='path for the audio sample to be predicted.',
 )
 
-_SAMPLE_RATE = 16000
 _FEATURES_SHAPE = (49, 40)
-_WINDOW_SIZE_MS = 30
-_WINDOW_STRIDE_MS = 20
 
 
 def quantize_input_data(data, input_details):
@@ -51,6 +48,9 @@ def quantize_input_data(data, input_details):
   Args:
       data (np.array in float): input data for the interpreter
       input_details : output of get_input_details from the tflm interpreter.
+
+  Returns:
+    np.ndarray: quantized data as int8 dtype
   """
   # Get input quantization parameters
   data_type = input_details['dtype']
@@ -126,8 +126,10 @@ def generate_features(
   """
   features = np.zeros(_FEATURES_SHAPE, dtype=np.int8)
   start_index = 0
-  window_size = int(_WINDOW_SIZE_MS * _SAMPLE_RATE / 1000)
-  window_stride = int(_WINDOW_STRIDE_MS * _SAMPLE_RATE / 1000)
+  window_size = int(audio_pp.params.window_size_ms *
+                    audio_pp.params.sample_rate / 1000)
+  window_stride = int(audio_pp.params.window_stride_ms *
+                      audio_pp.params.sample_rate / 1000)
   samples = audio_pp.samples[0]
   frame_number = 0
   end_index = start_index + window_size
@@ -158,17 +160,16 @@ def get_category_names() -> list[str]:
   return ['silence', 'unknown', 'yes', 'no']
 
 
-def main(_):
+def _main(_):
   sample_path = Path(_SAMPLE_PATH.value)
   assert sample_path.exists() and sample_path.is_file(), \
       'Audio sample file does not exist. Please check the path.'
   model_prefix_path = resource_loader.get_path_to_datafile('models')
   model_path = Path(model_prefix_path, 'micro_speech_quantized.tflite')
 
-  audio_pp = audio_preprocessor.AudioPreprocessor()
+  feature_params = audio_preprocessor.FeatureParams()
+  audio_pp = audio_preprocessor.AudioPreprocessor(feature_params)
   audio_pp.load_samples(sample_path)
-  assert audio_pp.sample_rate == _SAMPLE_RATE, \
-      f'Audio sample rate must be {_SAMPLE_RATE} per second'
   features = generate_features(audio_pp)
 
   tflm_interpreter = runtime.Interpreter.from_file(model_path)
@@ -196,4 +197,4 @@ def main(_):
 
 
 if __name__ == '__main__':
-  app.run(main)
+  app.run(_main)

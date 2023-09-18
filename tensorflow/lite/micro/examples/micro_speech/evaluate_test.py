@@ -44,15 +44,14 @@ class MicroSpeechTest(test_util.TensorFlowTestCase):
         ('silence', 'noise_1000ms.wav'),
         ('silence', 'silence_1000ms.wav'),
     ]
-    self.sample_rate = 16000
-    self.audio_pp = audio_preprocessor.AudioPreprocessor()
+    feature_params = audio_preprocessor.FeatureParams()
+    self.audio_pp = audio_preprocessor.AudioPreprocessor(feature_params)
 
   def testModelAccuracy(self):
     for label, sample_name in self.test_data:
       # Load audio sample data
       sample_path = Path(self.sample_prefix_path, sample_name)
       self.audio_pp.load_samples(sample_path)
-      self.assertEqual(self.sample_rate, self.audio_pp.sample_rate)
 
       # Generate feature data from audio samples.
       # Note that the noise estimate is reset each time generate_features()

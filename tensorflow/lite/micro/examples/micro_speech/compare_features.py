@@ -14,7 +14,7 @@
 """compare feature generator output"""
 
 import argparse
-from collections.abc import Generator
+from collections.abc import Iterator
 from collections import OrderedDict
 from typing import TextIO
 import re
@@ -23,16 +23,16 @@ import operator
 
 ParsedFile = OrderedDict[str, list[int]]
 
-get_next_line: Generator[str] = None
+get_next_line: Iterator[str]
 
 
-def get_next_line_generator(file: TextIO) -> Generator[str]:
+def get_next_line_generator(file: TextIO) -> Iterator[str]:
   for line in file:
     yield line
 
 
 def parse_tensor_data() -> list[int]:
-  values_list: list[int] = []
+  values_list: list[str] = []
   pattern = r'(-?\d+)[,\]]\s*'
   pattern_re = re.compile(pattern)
 
@@ -42,12 +42,12 @@ def parse_tensor_data() -> list[int]:
     if ']' in line:
       break
 
-  values_list = list(map(int, values_list))
-  return values_list
+  int_values_list = list(map(int, values_list))
+  return int_values_list
 
 
 def parse_dump_data() -> list[int]:
-  values_list: list[int] = []
+  values_list: list[str] = []
   pattern = r'(-?\d+),\s*'
   pattern_re = re.compile(pattern)
 
@@ -57,14 +57,15 @@ def parse_dump_data() -> list[int]:
       break
     values_list += values
 
-  values_list = list(map(int, values_list))
-  return values_list
+  int_values_list = list(map(int, values_list))
+  return int_values_list
 
 
 def parse_flat_size(line: str) -> int:
   # print(f'line: {line}')
   shape_pattern = r'shape=\((?:\d+,?\s?)+\)'
   match = re.search(shape_pattern, line)
+  assert match is not None, 'could not parse flat size'
   # print(f'match: {match!r}')
   digit_pattern = r'\d+'
   result: list[str] = re.findall(digit_pattern, match.group(0))

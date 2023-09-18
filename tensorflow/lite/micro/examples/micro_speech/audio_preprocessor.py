@@ -16,9 +16,10 @@ Audio Sample Preprocessor
 """
 
 from __future__ import annotations
-from typing import Callable, Any
+from typing import Callable
 from pathlib import Path
 from dataclasses import dataclass
+import tempfile
 
 from absl import app
 from absl import flags
@@ -47,6 +48,13 @@ _FILE_TO_TEST = flags.DEFINE_enum(
     'File to test'
 )
 
+_OUTPUT_TYPE = flags.DEFINE_enum(
+    'output_type',
+    'int8',
+    ['int8', 'float'],
+    'Type of TfLite output file (.tflite) to generate'
+)
+
 
 def _debug_print(*args):
   if _ENABLE_DEBUG.value != 'off':
@@ -58,7 +66,6 @@ class _GenerateFeature(tf.Module):
 
   def __init__(self, name: str, params: FeatureParams, detail: str):
     super().__init__(name=name)
-
     self._params = params
     window_sample_count: int = int(
         params.window_size_ms * params.sample_rate / 1000)
@@ -79,6 +86,8 @@ class _GenerateFeature(tf.Module):
     self._detail = detail
 
   def generate_feature_for_frame(self, audio_frame: tf.Tensor) -> tf.Tensor:
+    # Graph execution does not handle global variables.  Instead, capture the
+    # global variable(s) within a closure (_debug_print_internal).
     def _debug_print_internal(*args):
       if _ENABLE_DEBUG.value != 'off':
         if _ENABLE_DEBUG.value == 'single' and self._debug_single:
@@ -121,8 +130,7 @@ class _GenerateFeature(tf.Module):
     # convert fft output complex numbers to energy values
     _debug_print_internal(
         f'index start, end [{detail}]: {index_start}, {index_end}')
-    # Using type Any to work around Pylance errors
-    energy_output: tf.Tensor | Any = energy_op.energy(
+    energy_output: tf.Tensor = energy_op.energy(
         fft_output, index_start, index_end)
     # Energy op does not zero indices outside [index_start,index_end).
     # The following operations to zero portions of the energy op output
@@ -130,14 +138,15 @@ class _GenerateFeature(tf.Module):
     # code.
     # Need to convert to tf.int32 or the TfLite converter will not use
     # the correct ops.
-    energy_output = tf.cast(energy_output, tf.int32)
+    energy_output = tf.cast(energy_output, tf.int32)  # type: ignore
     zeros_head = tf.zeros(index_start, dtype=tf.int32)
-    # Using type Any to work around Pylance errors
-    number_of_elements: int | Any = energy_output.shape.num_elements()
-    zeros_tail = tf.zeros(number_of_elements - index_end, dtype=tf.int32)
+    number_of_elements = energy_output.shape.num_elements()
+    zeros_tail = tf.zeros(
+        number_of_elements - index_end, dtype=tf.int32)  # type: ignore
     energy_slice = energy_output[index_start:index_end]
-    energy_output = tf.concat([zeros_head, energy_slice, zeros_tail], 0)
-    energy_output = tf.cast(energy_output, dtype=tf.uint32)
+    energy_output = tf.concat(
+        [zeros_head, energy_slice, zeros_tail], 0)  # type: ignore
+    energy_output = tf.cast(energy_output, dtype=tf.uint32)  # type: ignore
     _debug_print_internal(f'energy output [{detail}]: {energy_output!r}')
 
     # compress energy output into 40 channels
@@ -226,17 +235,28 @@ class _GenerateFeature(tf.Module):
     # }
     # output[i] = value;
 
-    value_scale = tf.constant(256, dtype=tf.int32)
-    value_div = tf.constant(int((25.6 * 26) + 0.5), dtype=tf.int32)
-    # Using type Any to work around Pylance errors
-    feature_output: tf.Tensor | Any = tf.cast(
-        feature_rescaled_output, tf.int32)
-    feature_output = (feature_output * value_scale) + int(value_div / 2)
-    feature_output = tf.truncatediv(feature_output, value_div)
-    feature_output += tf.constant(-128, dtype=tf.int32)
-    feature_output = tf.clip_by_value(
-        feature_output, clip_value_min=-128, clip_value_max=127)
-    feature_output = tf.cast(feature_output, tf.int8)
+    feature_output: tf.Tensor
+    if self._params.use_float_output:
+      # feature_rescaled_output is INT16, cast to FLOAT32
+      feature_output = tf.cast(
+          feature_rescaled_output, tf.float32)  # type: ignore
+      # feature_output will be FLOAT32
+      feature_output /= self._params.legacy_output_scaling
+    else:
+      value_scale = tf.constant(256, dtype=tf.int32)
+      value_div = tf.constant(int((25.6 * 26) + 0.5), dtype=tf.int32)
+      feature_output = tf.cast(
+          feature_rescaled_output, tf.int32)  # type: ignore
+      feature_output = (feature_output * value_scale) + int(value_div / 2)
+      feature_output = tf.truncatediv(
+          feature_output, value_div)  # type: ignore
+      feature_output += tf.constant(-128, dtype=tf.int32)
+      feature_output = tf.clip_by_value(
+          feature_output,
+          clip_value_min=-128,
+          clip_value_max=127)  # type: ignore
+      feature_output = tf.cast(feature_output, tf.int8)  # type: ignore
+
     _debug_print_internal(f'feature output [{detail}]: {feature_output!r}')
 
     self._debug_single = True
@@ -244,7 +264,7 @@ class _GenerateFeature(tf.Module):
     return feature_output
 
 
-@dataclass(kw_only=True)
+@dataclass(kw_only=True, frozen=True)
 class FeatureParams:
   """
   Feature generator parameters
@@ -319,16 +339,23 @@ class FeatureParams:
   legacy_output_scaling: float = 25.6
   """Final output scaling, legacy from training"""
 
-  def __post_init__(self):
-    pass
+  use_float_output: bool = False
+  """Use float output if True, otherwise int8 output"""
 
 
 class AudioPreprocessor:
-  """Audio Preprocessor"""
+  """
+  Audio Preprocessor
+
+  Args:
+    params: FeatureParams, an immutable object supplying parameters for
+    the AudioPreprocessor instance
+    detail: str, used for debug output
+  """
 
   def __init__(
           self,
-          params: FeatureParams = FeatureParams(),
+          params: FeatureParams,
           detail: str = 'unknown'):
     self._detail = detail
     self._params = params
@@ -367,9 +394,21 @@ class AudioPreprocessor:
     return self._model
 
   def load_samples(self, filename: Path, use_rounding: bool = False):
+    """
+    Load audio samples from file.
+
+    Loads INT16 audio samples from a WAV file.
+    Supports single channel at 16KHz.
+    The audio samples are accessible through the 'samples' property.
+
+    Args:
+      filename: a Path object
+      use_rounding: bool, if True, convert the normalized FLOAT data that
+      has been loaded into INT16, using a standard rounding algorithm.
+      Otherwise use a simple conversion to INT16.
+    """
     file_data = tf.io.read_file(str(filename))
-    # Using type Any to work around Pylance errors
-    samples: tf.Tensor | Any
+    samples: tf.Tensor
     samples, sample_rate = tf.audio.decode_wav(file_data, desired_channels=1)
     sample_rate = int(sample_rate)
     _debug_print(f'Loaded {filename.name}'
@@ -384,7 +423,7 @@ class AudioPreprocessor:
       samples = ((samples * max_value) + (-min_value + 0.5)) + min_value
     else:
       samples *= -min_value
-    samples = tf.cast(samples, tf.int16)
+    samples = tf.cast(samples, tf.int16)  # type: ignore
     samples = tf.reshape(samples, [1, -1])
 
     self._samples = samples
@@ -399,24 +438,70 @@ class AudioPreprocessor:
 
   @property
   def samples(self) -> tf.Tensor:
+    """
+    Audio Samples previously decoded using load_samples method.
+
+    Returns:
+      tf.Tensor containing INT16 audio samples
+    """
     return self._samples
 
   @property
   def params(self) -> FeatureParams:
+    """
+    Feature Paramters being used by the AudioPreprocessor object
+
+    Returns:
+      FeatureParams object which is immutable
+    """
     return self._params
 
   def generate_feature(self, audio_frame: tf.Tensor) -> tf.Tensor:
+    """
+    Generate a single feature for a single audio frame.  Uses TensorFlow
+    eager execution.
+
+    Args:
+      audio_frame: tf.Tensor, a single audio frame (self.params.window_size_ms)
+
+    Returns:
+      tf.Tensor, a tensor containing a single audio feature with shape
+      (self.params.filter_bank_number_of_channels,)
+    """
     fg = self._get_feature_generator()
     feature = fg.generate_feature_for_frame(audio_frame=audio_frame)
     return feature
 
   def generate_feature_using_graph(self, audio_frame: tf.Tensor) -> tf.Tensor:
+    """
+    Generate a single feature for a single audio frame.  Uses TensorFlow
+    graph execution.
+
+    Args:
+      audio_frame: tf.Tensor, a single audio frame (self.params.window_size_ms)
+
+    Returns:
+      tf.Tensor, a tensor containing a single audio feature with shape
+      (self.params.filter_bank_number_of_channels,)
+    """
     cf = self._get_concrete_function()
-    # Using type Any to work around Pylance errors
-    feature: tf.Tensor | Any = cf(audio_frame=audio_frame)
+    feature: tf.Tensor = cf(audio_frame=audio_frame)  # type: ignore
     return feature
 
   def generate_feature_using_tflm(self, audio_frame: tf.Tensor) -> tf.Tensor:
+    """
+    Generate a single feature for a single audio frame.  Uses TensorFlow
+    graph execution and the TensorFlow model converter to generate a
+    TFLM compatible model.  This model is then used by the TFLM
+    MicroInterpreter to execute a single inference operation.
+
+    Args:
+      audio_frame: tf.Tensor, a single audio frame (self.params.window_size_ms)
+
+    Returns:
+      tf.Tensor, a tensor containing a single audio feature with shape
+      (self.params.filter_bank_number_of_channels,)
+    """
     if self._tflm_interpreter is None:
       model = self._get_model()
       self._tflm_interpreter = runtime.Interpreter.from_bytes(model)
@@ -427,14 +512,37 @@ class AudioPreprocessor:
     return tf.convert_to_tensor(result)
 
   def reset_tflm(self):
+    """
+    Reset TFLM interpreter state
+
+    Re-initializes TFLM interpreter state and the internal state
+    of all TFLM kernel operators.  Useful for resetting Signal
+    library operator noise estimation and other internal state.
+    """
     if self._tflm_interpreter is not None:
       self._tflm_interpreter.reset()
 
-  def generate_tflite_file(self, type_name):
+  def generate_tflite_file(self) -> Path:
+    """
+    Create a .tflite model file
+
+    The model output tensor type will depend on the
+    'FeatureParams.use_float_output' parameter.
+
+    Returns:
+      Path object for the created model file
+    """
     model = self._get_model()
-    fname = Path('/tmp', 'audio_preprocessor_' + type_name + '.tflite')
+    if self._params.use_float_output:
+      type_name = 'float'
+    else:
+      type_name = 'int8'
+    fname = Path(
+        tempfile.gettempdir(),
+        'audio_preprocessor_' + type_name + '.tflite')
     with open(fname, mode='wb') as file_handle:
       file_handle.write(model)
+    return fname
 
 
 _FeatureGenFunc = Callable[[tf.Tensor], tf.Tensor]
@@ -472,7 +580,10 @@ def _main(_):
   fname = _FILE_TO_TEST.value
   audio_30ms_path = Path(prefix_path, f'{fname}_30ms.wav')
 
-  pp = AudioPreprocessor(detail=fname)
+  use_float_output = _OUTPUT_TYPE.value == 'float'
+  params = FeatureParams(use_float_output=use_float_output)
+  pp = AudioPreprocessor(params=params, detail=fname)
+
   pp.load_samples(audio_30ms_path)
 
   #
@@ -495,7 +606,8 @@ def _main(_):
 
   print(f'\n[{fname}]: All tests PASS\n')
 
-  pp.generate_tflite_file('quantized')
+  output_file_path: Path = pp.generate_tflite_file()
+  print('Output .tflite file:', str(output_file_path), '\n')
 
 
 if __name__ == '__main__':
