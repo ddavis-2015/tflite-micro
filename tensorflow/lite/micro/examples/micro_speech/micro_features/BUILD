@@ -88,7 +88,7 @@ cc_test(
         "//tensorflow/lite/c:common",
         "//tensorflow/lite/micro:micro_framework",
         "//tensorflow/lite/micro:micro_log",
-        "//tensorflow/lite/micro/examples/micro_speech:audio_sample_test_data",
+        "//tensorflow/lite/micro/examples/micro_speech:audio_sample_test_data_30ms",
         "//tensorflow/lite/micro/testing:micro_test",
     ],
 )

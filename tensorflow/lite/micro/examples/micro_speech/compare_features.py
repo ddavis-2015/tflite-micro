@@ -131,6 +131,9 @@ def compare_parsed_files(file1: ParsedFile, file2: ParsedFile):
     if file1[key] == file2[key]:
       print(f'key {{{key}}} matches\n')
       continue
+    if len(file1[key]) != len(file2[key]):
+      print(f'key {{{key}}} length differs: '
+            f'{len(file1[key])} vs {len(file2[key])}')
     diff = list(map(operator.sub, file1[key], file2[key]))
     print(f'key {{{key}}} differs:\n{diff}\n')
 

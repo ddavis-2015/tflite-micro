@@ -23,7 +23,6 @@ bazel-bin/tensorflow/lite/micro/examples/micro_speech/audio_preprocessor
 """
 
 from __future__ import annotations
-from typing import Callable
 from pathlib import Path
 from dataclasses import dataclass
 import tempfile
@@ -44,7 +43,7 @@ from tflite_micro.python.tflite_micro import runtime
 _ENABLE_DEBUG = flags.DEFINE_enum(
     'debug_mode',
     'off',
-    ['off', 'all', 'single'],
+    ['off', 'all'],
     'Enable debug output',
 )
 
@@ -89,16 +88,13 @@ class _GenerateFeature(tf.Module):
             params.filter_bank_number_of_channels,
             params.filter_bank_lower_band_limit_hz,
             params.filter_bank_upper_band_limit_hz)
-    self._debug_single = False
     self._detail = detail
 
   def generate_feature_for_frame(self, audio_frame: tf.Tensor) -> tf.Tensor:
     # Graph execution does not handle global variables.  Instead, capture the
     # global variable(s) within a closure (_debug_print_internal).
     def _debug_print_internal(*args):
-      if _ENABLE_DEBUG.value != 'off':
-        if _ENABLE_DEBUG.value == 'single' and self._debug_single:
-          return
+      if _ENABLE_DEBUG.value != 'off' and tf.executing_eagerly():
         print(*args)
 
     _debug_print('*** generate_feature_for_frame ***')
@@ -265,8 +261,6 @@ class _GenerateFeature(tf.Module):
       feature_output = tf.cast(feature_output, tf.int8)  # type: ignore
 
     _debug_print_internal(f'feature output [{detail}]: {feature_output!r}')
-
-    self._debug_single = True
 
     return feature_output
 
@@ -558,11 +552,12 @@ def _main(_):
   params = FeatureParams(use_float_output=use_float_output)
   pp = AudioPreprocessor(params=params, detail=fname)
 
-  pp.load_samples(audio_30ms_path)
-  _ = pp.generate_feature(pp.samples)
+  if _ENABLE_DEBUG.value != 'off':
+    pp.load_samples(audio_30ms_path)
+    _ = pp.generate_feature(pp.samples)
 
   output_file_path: Path = pp.generate_tflite_file()
-  print('Output file:', str(output_file_path), '\n')
+  print('\nOutput file:', str(output_file_path), '\n')
 
 
 if __name__ == '__main__':

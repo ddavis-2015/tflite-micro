@@ -166,7 +166,8 @@ struct FrontendOutput _FrontendProcessSamples(struct FrontendState* state,
   DumpData(energy, state->fft.fft_size / 2 + 1, "Energy", detail);
 
   FilterbankAccumulateChannels(&state->filterbank, energy);
-  DumpData(state->filterbank.work, state->filterbank.num_channels + 1,
+  // skip first value (just like FilterbankSqrt) as it is scratch compute
+  DumpData(state->filterbank.work + 1, state->filterbank.num_channels,
            "Filterbank", detail);
 
   uint32_t* scaled_filterbank = FilterbankSqrt(&state->filterbank, input_shift);
