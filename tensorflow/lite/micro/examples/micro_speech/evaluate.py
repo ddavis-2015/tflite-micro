@@ -97,10 +97,11 @@ def predict(interpreter: runtime.Interpreter,
       np.ndarray: predicted probability (softmax) for each model category
   """
 
-  # input_details = interpreter.get_input_details(0)
-  # # Quantize the input if the model is quantized
-  # if input_details["dtype"] != np.float32:
-  #   data = quantize_input_data(data, input_details)
+  input_details = interpreter.get_input_details(0)
+  # Quantize the input if the model is quantized
+  # and our features are np.float32
+  if input_details['dtype'] != np.float32 and features.dtype == np.float32:
+    features = quantize_input_data(features, input_details)
   flattened_features = features.flatten().reshape([1, -1])
   interpreter.set_input(flattened_features, 0)
   interpreter.invoke()
@@ -124,7 +125,11 @@ def generate_features(
   Returns:
       np.ndarray: generated audio sample features with shape _FEATURES_SHAPE
   """
-  features = np.zeros(_FEATURES_SHAPE, dtype=np.int8)
+  if audio_pp.params.use_float_output:
+    dtype = np.float32
+  else:
+    dtype = np.int8
+  features = np.zeros(_FEATURES_SHAPE, dtype=dtype)
   start_index = 0
   window_size = int(audio_pp.params.window_size_ms *
                     audio_pp.params.sample_rate / 1000)

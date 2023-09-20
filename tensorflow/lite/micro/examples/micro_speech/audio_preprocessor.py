@@ -13,6 +13,13 @@
 # limitations under the License.
 """
 Audio Sample Preprocessor
+
+When this module is run, feature generation models are created in the .tflite
+format.
+
+Run:
+bazel build tensorflow/lite/micro/examples/micro_speech:audio_preprocessor
+bazel-bin/tensorflow/lite/micro/examples/micro_speech/audio_preprocessor
 """
 
 from __future__ import annotations
@@ -359,7 +366,8 @@ class AudioPreprocessor:
           detail: str = 'unknown'):
     self._detail = detail
     self._params = params
-    self._samples_per_window: int = 0
+    self._samples_per_window = int(
+        params.window_size_ms * params.sample_rate / 1000)
     self._tflm_interpreter = None
     self._feature_generator = None
     self._feature_generator_concrete_function = None
@@ -427,14 +435,6 @@ class AudioPreprocessor:
     samples = tf.reshape(samples, [1, -1])
 
     self._samples = samples
-    self._samples_per_window = self._params.window_size_ms * \
-        int(sample_rate / 1000)
-
-    # reset for new graph generation
-    self._feature_generator = None
-    self._feature_generator_concrete_function = None
-    self._model = None
-    self._tflm_interpreter = None
 
   @property
   def samples(self) -> tf.Tensor:
@@ -463,6 +463,7 @@ class AudioPreprocessor:
 
     Args:
       audio_frame: tf.Tensor, a single audio frame (self.params.window_size_ms)
+      with shape (1, audio_samples_count)
 
     Returns:
       tf.Tensor, a tensor containing a single audio feature with shape
@@ -479,6 +480,7 @@ class AudioPreprocessor:
 
     Args:
       audio_frame: tf.Tensor, a single audio frame (self.params.window_size_ms)
+      with shape (1, audio_samples_count)
 
     Returns:
       tf.Tensor, a tensor containing a single audio feature with shape
@@ -497,6 +499,7 @@ class AudioPreprocessor:
 
     Args:
       audio_frame: tf.Tensor, a single audio frame (self.params.window_size_ms)
+      with shape (1, audio_samples_count)
 
     Returns:
       tf.Tensor, a tensor containing a single audio feature with shape
@@ -545,35 +548,6 @@ class AudioPreprocessor:
     return fname
 
 
-_FeatureGenFunc = Callable[[tf.Tensor], tf.Tensor]
-
-
-def _compare_test_with_tflm_reset(
-        pp: AudioPreprocessor,
-        f1: _FeatureGenFunc,
-        name: str):
-  feature1 = f1(pp.samples)
-  for i in range(1, 4):
-    pp.reset_tflm()  # reset all internal state
-    feature2 = pp.generate_feature_using_tflm(pp.samples)
-    tf.debugging.assert_equal(
-        feature1, feature2, message=f'{name}: iteration {i}')
-  _debug_print(f'{name}: {feature1!r}')
-
-
-def _compare_test(
-        pp: AudioPreprocessor,
-        f1: _FeatureGenFunc,
-        name: str):
-  feature1 = None
-  for i in range(1, 50):
-    feature1 = f1(pp.samples)
-    feature2 = pp.generate_feature_using_tflm(pp.samples)
-    tf.debugging.assert_equal(
-        feature1, feature2, message=f'{name}: iteration {i}')
-  _debug_print(f'{name}: {feature1!r}')
-
-
 def _main(_):
   prefix_path = resource_loader.get_path_to_datafile('testdata')
 
@@ -585,29 +559,10 @@ def _main(_):
   pp = AudioPreprocessor(params=params, detail=fname)
 
   pp.load_samples(audio_30ms_path)
-
-  #
-  # Tests take into account the inability to reset the noise estimation
-  # state during TensorFlow eager and graph execution.
-  #
-  _compare_test_with_tflm_reset(
-      pp,
-      pp.generate_feature,
-      f'{fname}_features_using_func with reset')
-  _compare_test(
-      pp,
-      pp.generate_feature,
-      f'{fname}_features_using_func')
-  pp.reset_tflm()  # reset all internal state
-  _compare_test(
-      pp,
-      pp.generate_feature_using_graph,
-      f'{fname}_features_using_graph')
-
-  print(f'\n[{fname}]: All tests PASS\n')
+  _ = pp.generate_feature(pp.samples)
 
   output_file_path: Path = pp.generate_tflite_file()
-  print('Output .tflite file:', str(output_file_path), '\n')
+  print('Output file:', str(output_file_path), '\n')
 
 
 if __name__ == '__main__':

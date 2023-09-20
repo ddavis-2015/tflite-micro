@@ -96,14 +96,14 @@ generate_cc_arrays(
 
 generate_cc_arrays(
     name = "generated_audio_preprocessor_model_cc",
-    src = "models/audio_preprocessor_quantized.tflite",
-    out = "models/audio_preprocessor_quantized_model_data.cc",
+    src = "models/audio_preprocessor_int8.tflite",
+    out = "models/audio_preprocessor_int8_model_data.cc",
 )
 
 generate_cc_arrays(
     name = "generated_audio_preprocessor_model_hdr",
-    src = "models/audio_preprocessor_quantized.tflite",
-    out = "models/audio_preprocessor_quantized_model_data.h",
+    src = "models/audio_preprocessor_int8.tflite",
+    out = "models/audio_preprocessor_int8_model_data.h",
 )
 
 cc_library(
@@ -195,25 +195,6 @@ filegroup(
 )
 
 py_binary(
-    name = "generate_features",
-    srcs = ["generate_features.py"],
-    data = [
-        ":samples_30ms",
-    ],
-    python_version = "PY3",
-    srcs_version = "PY3",
-    deps = [
-        "@absl_py//absl:app",
-        "@absl_py//absl/flags",
-        "@absl_py//absl/logging",
-        requirement("numpy"),
-        requirement("tensorflow-cpu"),
-        "//python/tflite_micro/signal:ops",
-        "//python/tflite_micro/signal/utils:util",
-    ],
-)
-
-py_binary(
     name = "audio_preprocessor",
     srcs = ["audio_preprocessor.py"],
     data = [
@@ -224,7 +205,6 @@ py_binary(
     deps = [
         "@absl_py//absl:app",
         "@absl_py//absl/flags",
-        "@absl_py//absl/logging",
         requirement("numpy"),
         requirement("tensorflow-cpu"),
         "//python/tflite_micro/signal:ops",
@@ -242,28 +222,44 @@ py_binary(
     python_version = "PY3",
     srcs_version = "PY3",
     deps = [
-        "@absl_py//absl:app",
-        "@absl_py//absl/flags",
-        "@absl_py//absl/logging",
-        requirement("numpy"),
-        requirement("tensorflow-cpu"),
-        "//python/tflite_micro/signal:ops",
-        "//python/tflite_micro/signal/utils:util",
-        "//python/tflite_micro:runtime",
         ":audio_preprocessor",
     ],
 )
 
-py_binary(
+py_test(
     name = "evaluate_test",
     srcs = ["evaluate_test.py"],
     data = [
         ":samples_1000ms",
         ":models_tflite",
     ],
+    main = "evaluate_test.py",
     python_version = "PY3",
-    srcs_version = "PY3",
+    tags = [
+        "noasan",
+        "nomsan",  # Python doesn't like these symbols
+        "noubsan",
+    ],
     deps = [
         ":evaluate",
+    ],
+)
+
+py_test(
+    name = "audio_preprocessor_test",
+    srcs = ["audio_preprocessor_test.py"],
+    data = [
+        ":samples_30ms",
+        ":models_tflite",
+    ],
+    main = "audio_preprocessor_test.py",
+    python_version = "PY3",
+    tags = [
+        "noasan",
+        "nomsan",  # Python doesn't like these symbols
+        "noubsan",
+    ],
+    deps = [
+        ":audio_preprocessor",
     ],
 )

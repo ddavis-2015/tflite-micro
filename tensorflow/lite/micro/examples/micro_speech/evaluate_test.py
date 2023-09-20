@@ -44,19 +44,42 @@ class MicroSpeechTest(test_util.TensorFlowTestCase):
         ('silence', 'noise_1000ms.wav'),
         ('silence', 'silence_1000ms.wav'),
     ]
-    feature_params = audio_preprocessor.FeatureParams()
-    self.audio_pp = audio_preprocessor.AudioPreprocessor(feature_params)
 
-  def testModelAccuracy(self):
+  def testModelAccuracyWithInt8Features(self):
+    feature_params = audio_preprocessor.FeatureParams()
+    audio_pp = audio_preprocessor.AudioPreprocessor(feature_params)
     for label, sample_name in self.test_data:
       # Load audio sample data
       sample_path = Path(self.sample_prefix_path, sample_name)
-      self.audio_pp.load_samples(sample_path)
+      audio_pp.load_samples(sample_path)
 
       # Generate feature data from audio samples.
       # Note that the noise estimate is reset each time generate_features()
       # is called.
-      features = evaluate.generate_features(self.audio_pp)
+      features = evaluate.generate_features(audio_pp)
+
+      # Run model inference (quantized) on the feature data
+      category_probabilities = evaluate.predict(
+          self.tflm_interpreter, features)
+
+      # Check the prediction result
+      predicted_category = np.argmax(category_probabilities)
+      category_names = evaluate.get_category_names()
+      # Check the prediction
+      self.assertEqual(category_names[predicted_category], label)
+
+  def testModelAccuracyWithFloatFeatures(self):
+    feature_params = audio_preprocessor.FeatureParams(use_float_output=True)
+    audio_pp = audio_preprocessor.AudioPreprocessor(feature_params)
+    for label, sample_name in self.test_data:
+      # Load audio sample data
+      sample_path = Path(self.sample_prefix_path, sample_name)
+      audio_pp.load_samples(sample_path)
+
+      # Generate feature data from audio samples.
+      # Note that the noise estimate is reset each time generate_features()
+      # is called.
+      features = evaluate.generate_features(audio_pp)
 
       # Run model inference (quantized) on the feature data
       category_probabilities = evaluate.predict(

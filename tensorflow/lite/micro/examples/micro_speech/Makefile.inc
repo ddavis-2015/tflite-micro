@@ -11,7 +11,7 @@ MICRO_SPEECH_HDRS := $(MICRO_SPEECH_TEST_HDRS)
 
 MICRO_SPEECH_GENERATOR_INPUTS := \
 $(TENSORFLOW_ROOT)tensorflow/lite/micro/examples/micro_speech/models/micro_speech_quantized.tflite \
-$(TENSORFLOW_ROOT)tensorflow/lite/micro/examples/micro_speech/models/audio_preprocessor_quantized.tflite \
+$(TENSORFLOW_ROOT)tensorflow/lite/micro/examples/micro_speech/models/audio_preprocessor_int8.tflite \
 $(TENSORFLOW_ROOT)tensorflow/lite/micro/examples/micro_speech/testdata/no_1000ms.wav \
 $(TENSORFLOW_ROOT)tensorflow/lite/micro/examples/micro_speech/testdata/yes_1000ms.wav \
 $(TENSORFLOW_ROOT)tensorflow/lite/micro/examples/micro_speech/testdata/silence_1000ms.wav \
@@ -19,7 +19,7 @@ $(TENSORFLOW_ROOT)tensorflow/lite/micro/examples/micro_speech/testdata/noise_100
 
 MICRO_SPEECH_GENERATED_SRCS := \
 $(GENERATED_SRCS_DIR)$(TENSORFLOW_ROOT)tensorflow/lite/micro/examples/micro_speech/models/micro_speech_quantized_model_data.cc \
-$(GENERATED_SRCS_DIR)$(TENSORFLOW_ROOT)tensorflow/lite/micro/examples/micro_speech/models/audio_preprocessor_quantized_model_data.cc \
+$(GENERATED_SRCS_DIR)$(TENSORFLOW_ROOT)tensorflow/lite/micro/examples/micro_speech/models/audio_preprocessor_int8_model_data.cc \
 $(GENERATED_SRCS_DIR)$(TENSORFLOW_ROOT)tensorflow/lite/micro/examples/micro_speech/testdata/no_1000ms_audio_data.cc \
 $(GENERATED_SRCS_DIR)$(TENSORFLOW_ROOT)tensorflow/lite/micro/examples/micro_speech/testdata/yes_1000ms_audio_data.cc \
 $(GENERATED_SRCS_DIR)$(TENSORFLOW_ROOT)tensorflow/lite/micro/examples/micro_speech/testdata/silence_1000ms_audio_data.cc \
@@ -27,7 +27,7 @@ $(GENERATED_SRCS_DIR)$(TENSORFLOW_ROOT)tensorflow/lite/micro/examples/micro_spee
 
 MICRO_SPEECH_GENERATED_HDRS := \
 $(GENERATED_SRCS_DIR)$(TENSORFLOW_ROOT)tensorflow/lite/micro/examples/micro_speech/models/micro_speech_quantized_model_data.h \
-$(GENERATED_SRCS_DIR)$(TENSORFLOW_ROOT)tensorflow/lite/micro/examples/micro_speech/models/audio_preprocessor_quantized_model_data.h \
+$(GENERATED_SRCS_DIR)$(TENSORFLOW_ROOT)tensorflow/lite/micro/examples/micro_speech/models/audio_preprocessor_int8_model_data.h \
 $(GENERATED_SRCS_DIR)$(TENSORFLOW_ROOT)tensorflow/lite/micro/examples/micro_speech/testdata/no_1000ms_audio_data.h \
 $(GENERATED_SRCS_DIR)$(TENSORFLOW_ROOT)tensorflow/lite/micro/examples/micro_speech/testdata/yes_1000ms_audio_data.h \
 $(GENERATED_SRCS_DIR)$(TENSORFLOW_ROOT)tensorflow/lite/micro/examples/micro_speech/testdata/silence_1000ms_audio_data.h \

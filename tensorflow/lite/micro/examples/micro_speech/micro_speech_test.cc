@@ -20,7 +20,7 @@ limitations under the License.
 
 #include "tensorflow/lite/core/c/common.h"
 #include "tensorflow/lite/micro/examples/micro_speech/micro_model_settings.h"
-#include "tensorflow/lite/micro/examples/micro_speech/models/audio_preprocessor_quantized_model_data.h"
+#include "tensorflow/lite/micro/examples/micro_speech/models/audio_preprocessor_int8_model_data.h"
 #include "tensorflow/lite/micro/examples/micro_speech/models/micro_speech_quantized_model_data.h"
 #include "tensorflow/lite/micro/examples/micro_speech/testdata/no_1000ms_audio_data.h"
 #include "tensorflow/lite/micro/examples/micro_speech/testdata/noise_1000ms_audio_data.h"
@@ -162,7 +162,7 @@ TfLiteStatus GenerateFeatures(const int16_t* audio_data,
   // Map the model into a usable data structure. This doesn't involve any
   // copying or parsing, it's a very lightweight operation.
   const tflite::Model* model =
-      tflite::GetModel(g_audio_preprocessor_quantized_model_data);
+      tflite::GetModel(g_audio_preprocessor_int8_model_data);
   TFLITE_CHECK_EQ(model->version(), TFLITE_SCHEMA_VERSION);
 
   AudioPreprocessorOpResolver op_resolver;
