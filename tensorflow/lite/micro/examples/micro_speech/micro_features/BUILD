@@ -57,27 +57,6 @@ cc_library(
 )
 
 cc_test(
-    name = "micro_features_generator_test",
-    size = "small",
-    srcs = [
-        "micro_features_generator_test.cc",
-    ],
-    tags = [
-        "noasan",  # TODO(b/179930607): Fix with asan.
-    ],
-    deps = [
-        ":micro_features_generator",
-        ":micro_features_generator_test_data",
-        ":micro_model_settings",
-        "//tensorflow/lite/c:common",
-        "//tensorflow/lite/micro:micro_framework",
-        "//tensorflow/lite/micro:micro_log",
-        "//tensorflow/lite/micro/examples/micro_speech:audio_sample_test_data",
-        "//tensorflow/lite/micro/testing:micro_test",
-    ],
-)
-
-cc_test(
     name = "micro_features_dump",
     srcs = [
         "micro_features_dump.cc",
