@@ -125,7 +125,6 @@ cc_library(
     hdrs = ["filter_bank_log.h"],
     deps = [
         ":log",
-        "//tensorflow/lite/micro:micro_log",
     ],
 )
 
