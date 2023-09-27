@@ -17,11 +17,14 @@ limitations under the License.
 
 #include "hello_world_model.h"
 
+#include "codegen/runtime/micro_codegen_context.h"
 #include "tensorflow/lite/c/builtin_op_data.h"
 #include "tensorflow/lite/c/c_api_types.h"
 #include "tensorflow/lite/c/common.h"
+#include "tensorflow/lite/kernels/internal/compatibility.h"
 #include "tensorflow/lite/micro/kernels/micro_ops.h"
 #include "tensorflow/lite/micro/micro_common.h"
+#include "tensorflow/lite/micro/micro_context.h"
 
 namespace hello_world_model {
 namespace {
@@ -101,6 +104,10 @@ alignas(16) uint8_t buffer_7[16] = {
 
 // buffer_10 is located in the arena
 
+constexpr size_t kSubgraph0Inputs[1] = {0};
+
+constexpr size_t kSubgraph0Outputs[1] = {9};
+
 struct Node0_0 {
   struct Inputs {
     int size = 3;
@@ -115,7 +122,8 @@ struct Node0_0 {
       .activation = kTfLiteActRelu,
       .weights_format = kTfLiteFullyConnectedWeightsFormatDefault,
       .keep_num_dims = false,
-      .asymmetric_quantize_inputs = false};
+      .asymmetric_quantize_inputs = false,
+      .quantized_bias_type = kTfLiteNoType};
 } node_0_0;
 
 struct Node0_1 {
@@ -132,7 +140,8 @@ struct Node0_1 {
       .activation = kTfLiteActRelu,
       .weights_format = kTfLiteFullyConnectedWeightsFormatDefault,
       .keep_num_dims = false,
-      .asymmetric_quantize_inputs = false};
+      .asymmetric_quantize_inputs = false,
+      .quantized_bias_type = kTfLiteNoType};
 } node_0_1;
 
 struct Node0_2 {
@@ -149,7 +158,8 @@ struct Node0_2 {
       .activation = kTfLiteActNone,
       .weights_format = kTfLiteFullyConnectedWeightsFormatDefault,
       .keep_num_dims = false,
-      .asymmetric_quantize_inputs = false};
+      .asymmetric_quantize_inputs = false,
+      .quantized_bias_type = kTfLiteNoType};
 } node_0_2;
 
 struct Tensor0_0Dims {
@@ -202,13 +212,34 @@ struct Tensor0_9Dims {
   int data[2] = {1, 1};
 } tensor0_9_dims;
 
+TfLiteStatus InvokeSubgraph0(TfLiteContext* context,
+                             tflite::Span<TfLiteNode> nodes) {
+  TFLITE_DCHECK(nodes.size() == 3);
+  TF_LITE_ENSURE_OK(
+      context, op_table[OpCode::kFullyConnected].invoke(context, &nodes[0]));
+  TF_LITE_ENSURE_OK(
+      context, op_table[OpCode::kFullyConnected].invoke(context, &nodes[1]));
+  TF_LITE_ENSURE_OK(
+      context, op_table[OpCode::kFullyConnected].invoke(context, &nodes[2]));
+
+  return kTfLiteOk;
+}
+
 }  // namespace
 
-Model::Model() {
-  context_.impl_ = nullptr;
+Model::Model()
+  : subgraphs_{
+      {.inputs = {&kSubgraph0Inputs[0], 1},
+       .outputs = {&kSubgraph0Outputs[0], 1},
+       .nodes = {&subgraph0_nodes_[0], 3},
+       .tensors = {&subgraph0_tensors_[0], 10},
+       .invoke = &InvokeSubgraph0},
+    },
+    micro_context_{&context_, {&subgraphs_[0], 1}} {
+  context_.impl_ = static_cast<void*>(&micro_context_);
   context_.ReportError = nullptr;
   context_.GetTensor = nullptr;
-  context_.GetEvalTensor = nullptr;
+  context_.GetEvalTensor = tflite::MicroContextGetEvalTensor;
   context_.profiler = nullptr;
   context_.GetExternalContext = nullptr;
   context_.GetScratchBuffer = nullptr;
@@ -280,17 +311,6 @@ Model::Model() {
       .type = kTfLiteInt8};
 }
 
-TfLiteStatus Model::Invoke() { return InvokeSubgraph0(); }
-
-TfLiteStatus Model::InvokeSubgraph0() {
-  TF_LITE_ENSURE_OK(context_, op_table[OpCode::kFullyConnected].invoke(
-                                  &context_, &subgraph0_nodes_[0]));
-  TF_LITE_ENSURE_OK(context_, op_table[OpCode::kFullyConnected].invoke(
-                                  &context_, &subgraph0_nodes_[1]));
-  TF_LITE_ENSURE_OK(context_, op_table[OpCode::kFullyConnected].invoke(
-                                  &context_, &subgraph0_nodes_[2]));
-
-  return kTfLiteOk;
-}
+TfLiteStatus Model::Invoke() { return micro_context_.InvokeSubgraph(0); }
 
 }  // namespace hello_world_model
