@@ -107,7 +107,7 @@ the first stage of a pipeline, running on a low-energy piece of hardware that
 can always be on, and then wake higher-power chips when a possible utterance has
 been found, so that more accurate analysis can be done. Additionally, the model
 takes in preprocessed speech input as a result of which we can leverage a
-simpler model for accurate results.
+simpler model for inference results.
 
 ## Dataset
 

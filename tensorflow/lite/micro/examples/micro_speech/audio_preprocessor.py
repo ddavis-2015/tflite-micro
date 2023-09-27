@@ -57,7 +57,7 @@ _FILE_TO_TEST = flags.DEFINE_enum(
 _OUTPUT_TYPE = flags.DEFINE_enum(
     'output_type',
     'int8',
-    ['int8', 'float'],
+    ['int8', 'float32'],
     'Type of TfLite output file (.tflite) to generate'
 )
 
@@ -270,7 +270,7 @@ class FeatureParams:
   """
   Feature generator parameters
 
-  Defaults are configured to work the the micro_speech_quantized.tflite model
+  Defaults are configured to work with the micro_speech_quantized.tflite model
   """
 
   sample_rate: int = 16000
@@ -351,7 +351,7 @@ class AudioPreprocessor:
   Args:
     params: FeatureParams, an immutable object supplying parameters for
     the AudioPreprocessor instance
-    detail: str, used for debug output
+    detail: str, used for debug output (optional, for debugging only)
   """
 
   def __init__(
@@ -366,6 +366,7 @@ class AudioPreprocessor:
     self._feature_generator = None
     self._feature_generator_concrete_function = None
     self._model = None
+    self._samples = None
 
   def _get_feature_generator(self):
     if self._feature_generator is None:
@@ -548,7 +549,7 @@ def _main(_):
   fname = _FILE_TO_TEST.value
   audio_30ms_path = Path(prefix_path, f'{fname}_30ms.wav')
 
-  use_float_output = _OUTPUT_TYPE.value == 'float'
+  use_float_output = _OUTPUT_TYPE.value == 'float32'
   params = FeatureParams(use_float_output=use_float_output)
   pp = AudioPreprocessor(params=params, detail=fname)
 
