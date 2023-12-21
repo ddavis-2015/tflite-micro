@@ -265,7 +265,7 @@ TF_LITE_MICRO_TEST(ReshapeWithRegularShapesShouldSucceed) {
       golden_dims_len, false);
 }
 
-// Stretch is not supported with TF Micro
+// Stretch is supported with TF Micro
 TF_LITE_MICRO_TEST(ReshapeWithStretchDimensionShouldSucceed) {
   float output_data_float[32];
   int8_t output_data_int8[32];
