@@ -51,6 +51,40 @@ class KerasConvTest(test_util.TensorFlowTestCase):
     model = keras.Model(inputs=input_layer, outputs=conv_layer)
     return model
 
+  def MakeDepthwiseConv1dModel(self, *, shape, dilation):
+    input_layer = keras.layers.Input(shape=shape)
+    conv_layer = keras.layers.DepthwiseConv1D(3,
+                                              dilation_rate=dilation,
+                                              padding='same')(input_layer)
+    model = keras.Model(inputs=input_layer, outputs=conv_layer)
+    return model
+
+  def MakeDepthwiseConv2dModel(self, *, shape, dilation):
+    input_layer = keras.layers.Input(shape=shape)
+    conv_layer = keras.layers.DepthwiseConv2D(3,
+                                              dilation_rate=dilation,
+                                              padding='same')(input_layer)
+    model = keras.Model(inputs=input_layer, outputs=conv_layer)
+    return model
+
+  def MakeTransposeConv1dModel(self, *, shape, dilation):
+    input_layer = keras.layers.Input(shape=shape)
+    conv_layer = keras.layers.Conv1DTranspose(1,
+                                              3,
+                                              dilation_rate=dilation,
+                                              padding='same')(input_layer)
+    model = keras.Model(inputs=input_layer, outputs=conv_layer)
+    return model
+
+  def MakeTransposeConv2dModel(self, *, shape, dilation):
+    input_layer = keras.layers.Input(shape=shape)
+    conv_layer = keras.layers.Conv2DTranspose(1,
+                                              3,
+                                              dilation_rate=dilation,
+                                              padding='same')(input_layer)
+    model = keras.Model(inputs=input_layer, outputs=conv_layer)
+    return model
+
   def ExecuteModelTest(self, model: keras.Model):
     model_shape = list(model.layers[0].input_shape[0])
     model_shape[0] = 1
@@ -93,6 +127,30 @@ class KerasConvTest(test_util.TensorFlowTestCase):
 
   def testConv2dWithDilation2(self):
     model = self.MakeConv2dModel(shape=(1, 8, 1), dilation=2)
+    self.ExecuteModelTest(model)
+
+  def testDepthwiseConv1dWithDilation1(self):
+    model = self.MakeDepthwiseConv1dModel(shape=(8, 1), dilation=1)
+    self.ExecuteModelTest(model)
+
+  def testDepthwiseConv1dWithDilation2(self):
+    model = self.MakeDepthwiseConv1dModel(shape=(8, 1), dilation=2)
+    self.ExecuteModelTest(model)
+
+  def testDepthwiseConv2dWithDilation1(self):
+    model = self.MakeDepthwiseConv2dModel(shape=(1, 8, 1), dilation=1)
+    self.ExecuteModelTest(model)
+
+  def testDepthwiseConv2dWithDilation2(self):
+    model = self.MakeDepthwiseConv2dModel(shape=(1, 8, 1), dilation=2)
+    self.ExecuteModelTest(model)
+
+  def testTransposeConv1dWithDilation1(self):
+    model = self.MakeTransposeConv1dModel(shape=(8, 1), dilation=1)
+    self.ExecuteModelTest(model)
+
+  def testTransposeConv2dWithDilation1(self):
+    model = self.MakeTransposeConv2dModel(shape=(1, 8, 1), dilation=1)
     self.ExecuteModelTest(model)
 
 
