@@ -10,25 +10,6 @@ package(
     licenses = ["notice"],
 )
 
-py_binary(
-    name = "audio_preprocessor",
-    srcs = ["audio_preprocessor.py"],
-    data = [
-        ":samples_30ms",
-    ],
-    python_version = "PY3",
-    srcs_version = "PY3",
-    deps = [
-        "@absl_py//absl:app",
-        "@absl_py//absl/flags",
-        requirement("numpy"),
-        requirement("tensorflow-cpu"),
-        "//python/tflite_micro:runtime",
-        "//python/tflite_micro/signal:ops",
-        "//python/tflite_micro/signal/utils:util",
-    ],
-)
-
 py_test(
     name = "conv_tests",
     srcs = ["conv_tests.py"],
