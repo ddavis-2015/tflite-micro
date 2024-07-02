@@ -1890,6 +1890,7 @@ TfLiteFloatArray* FloatArrayFromFloats(const float* floats) {
   return reinterpret_cast<TfLiteFloatArray*>(const_cast<float*>(floats));
 }
 
+// TODO: make template
 TfLiteTensor CreateQuantizedBiasTensor(const float* data, int16_t* quantized,
                                        TfLiteIntArray* dims, float input_scale,
                                        float weights_scale, bool is_variable) {
@@ -1904,6 +1905,7 @@ TfLiteTensor CreateQuantizedBiasTensor(const float* data, int16_t* quantized,
   return result;
 }
 
+// TODO: make template
 TfLiteTensor CreateQuantizedBiasTensor(const float* data, int32_t* quantized,
                                        TfLiteIntArray* dims, float input_scale,
                                        float weights_scale, bool is_variable) {
@@ -1918,6 +1920,7 @@ TfLiteTensor CreateQuantizedBiasTensor(const float* data, int32_t* quantized,
   return result;
 }
 
+// TODO: make template
 TfLiteTensor CreateQuantizedBiasTensor(const float* data,
                                        std::int64_t* quantized,
                                        TfLiteIntArray* dims, float input_scale,
@@ -1933,37 +1936,7 @@ TfLiteTensor CreateQuantizedBiasTensor(const float* data,
   return result;
 }
 
-// Quantizes int32_t bias tensor with per-channel weights determined by input
-// scale multiplied by weight scale for each channel.
-template <typename T>
-TfLiteTensor CreatePerChannelQuantizedBiasTensor(
-    const float* input, T* quantized, TfLiteIntArray* dims, float input_scale,
-    float* weight_scales, float* scales, int* zero_points,
-    TfLiteAffineQuantization* affine_quant, int quantized_dimension,
-    bool is_variable) {
-  int input_size = ElementCount(*dims);
-  int num_channels = dims->data[quantized_dimension];
-  // First element is reserved for array length
-  zero_points[0] = num_channels;
-  scales[0] = static_cast<float>(num_channels);
-  float* scales_array = &scales[1];
-  for (int i = 0; i < num_channels; i++) {
-    scales_array[i] = input_scale * weight_scales[i];
-    zero_points[i + 1] = 0;
-  }
-
-  SymmetricPerChannelQuantize<T>(input, quantized, input_size, num_channels,
-                                 scales_array);
-
-  affine_quant->scale = FloatArrayFromFloats(scales);
-  affine_quant->zero_point = IntArrayFromInts(zero_points);
-  affine_quant->quantized_dimension = quantized_dimension;
-
-  TfLiteTensor result = CreateTensor(quantized, dims, is_variable);
-  result.quantization = {kTfLiteAffineQuantization, affine_quant};
-  return result;
-}
-
+// TODO: remove
 TfLiteTensor CreatePerChannelQuantizedBiasTensor(
     const float* input, int32_t* quantized, TfLiteIntArray* dims,
     float input_scale, float* weight_scales, float* scales, int* zero_points,
@@ -1974,6 +1947,7 @@ TfLiteTensor CreatePerChannelQuantizedBiasTensor(
       affine_quant, quantized_dimension, is_variable);
 }
 
+// TODO: remove
 TfLiteTensor CreatePerChannelQuantizedBiasTensor(
     const float* input, std::int64_t* quantized, TfLiteIntArray* dims,
     float input_scale, float* weight_scales, float* scales, int* zero_points,

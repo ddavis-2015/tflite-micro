@@ -1,4 +1,4 @@
-/* Copyright 2021 The TensorFlow Authors. All Rights Reserved.
+/* Copyright 2024 The TensorFlow Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,18 +15,73 @@ limitations under the License.
 
 #include "tensorflow/lite/micro/fake_micro_context.h"
 
+#include <algorithm>
+
 #include "tensorflow/lite/c/c_api_types.h"
 #include "tensorflow/lite/kernels/internal/compatibility.h"
 #include "tensorflow/lite/micro/arena_allocator/single_arena_buffer_allocator.h"
 #include "tensorflow/lite/micro/micro_arena_constants.h"
 #include "tensorflow/lite/micro/micro_log.h"
+#include "tensorflow/lite/micro/micro_utils.h"
 
 namespace tflite {
 
-FakeMicroContext::FakeMicroContext(TfLiteTensor* tensors,
-                                   SingleArenaBufferAllocator* allocator,
-                                   MicroGraph* micro_graph)
-    : graph_(*micro_graph), tensors_(tensors), allocator_(allocator) {}
+namespace {
+
+template <typename T>
+T* DecompressToBuffer(uint8_t* compressed_indices, size_t count_indices,
+                      void* buffer,
+                      const MicroContext::CompressionTensorData& comp_data) {
+  const size_t compressed_bit_width =
+      comp_data.data.bin_quant.compressed_bit_width;
+  TFLITE_DCHECK(compressed_bit_width <= 7);
+  TFLITE_DCHECK(compressed_bit_width > 0);
+
+  size_t buffer_index = 0;
+  size_t table_index = 0;
+  size_t table_index_bits_to_fill = compressed_bit_width;
+  size_t current_offset = 0;
+  size_t current_bits_remaining = 8;
+  uint8_t current_byte = compressed_indices[current_offset];
+
+  while (buffer_index < count_indices) {
+    while (table_index_bits_to_fill > 0) {
+      const uint8_t mask_bit_count =
+          std::min(table_index_bits_to_fill,
+                   std::min(compressed_bit_width, current_bits_remaining));
+      const uint8_t current_byte_mask = (1 << mask_bit_count) - 1;
+      table_index <<= mask_bit_count;
+      table_index |=
+          (current_byte >> (current_bits_remaining - mask_bit_count)) &
+          current_byte_mask;
+
+      table_index_bits_to_fill -= mask_bit_count;
+      current_bits_remaining -= mask_bit_count;
+      if (current_bits_remaining == 0) {
+        current_byte = compressed_indices[++current_offset];
+        current_bits_remaining = 8;
+      }
+    }
+
+    static_cast<T*>(buffer)[buffer_index] = static_cast<const T*>(
+        comp_data.data.bin_quant.value_table)[table_index];
+    buffer_index++;
+    table_index_bits_to_fill = compressed_bit_width;
+    table_index = 0;
+  }
+
+  return static_cast<T*>(buffer);
+}
+
+}  // namespace
+
+FakeMicroContext::FakeMicroContext(
+    TfLiteTensor* tensors, SingleArenaBufferAllocator* allocator,
+    MicroGraph* micro_graph, const CompressedTensorList* compressed_tensors)
+    : graph_(*micro_graph),
+      tensors_(tensors),
+      allocator_(allocator),
+      compressed_tensors_(compressed_tensors) {}
 
 TfLiteTensor* FakeMicroContext::AllocateTempTfLiteTensor(int tensor_index) {
   allocated_temp_count_++;
@@ -111,5 +166,93 @@ TfLiteStatus FakeMicroContext::set_external_context(
 void* FakeMicroContext::external_context() { return nullptr; }
 
 MicroGraph& FakeMicroContext::graph() { return graph_; }
+
+bool FakeMicroContext::IsTensorCompressed(const TfLiteNode* node,
+                                          int tensor_idx) {
+  if (compressed_tensors_ != nullptr) {
+    int index = node->inputs->data[tensor_idx];
+    if (compressed_tensors_->tensors[index] != nullptr) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+// Only available during Prepare. The kernel is responsible for storing the
+// scratch buffer handle.
+int FakeMicroContext::AllocateDecompressionScratchBuffer(const TfLiteNode* node,
+                                                         int tensor_idx) {
+  if (compressed_tensors_ == nullptr) {
+    return -1;
+  }
+  int index = node->inputs->data[tensor_idx];
+  if (compressed_tensors_->tensors[index] == nullptr) {
+    return -1;
+  }
+  TfLiteTensor* tensor = &tensors_[index];
+  int scratch_index = -1;
+  TfLiteStatus result =
+      RequestScratchBufferInArena(tensor->bytes, &scratch_index);
+  if (result != kTfLiteOk) {
+    return -1;
+  }
+
+  return scratch_index;
+}
+
+// Available during Prepare & Eval. Returns nullptr if tensor is not
+// compressed.
+const MicroContext::CompressionTensorData*
+FakeMicroContext::GetTensorCompressionData(const TfLiteNode* node,
+                                           int tensor_idx) {
+  if (compressed_tensors_ == nullptr) {
+    return nullptr;
+  }
+
+  int index = node->inputs->data[tensor_idx];
+  return compressed_tensors_->tensors[index];
+}
+
+void* FakeMicroContext::DecompressTensorToScratchBuffer(
+    const TfLiteEvalTensor& tensor,
+    const CompressionTensorData& compression_data, int scratch_buffer_handle) {
+  TFLITE_DCHECK(scratch_buffer_handle != -1);
+  void* scratch_buffer = GetScratchBuffer(scratch_buffer_handle);
+  TFLITE_DCHECK(scratch_buffer != nullptr);
+  size_t count = ElementCount(*tensor.dims);
+
+  switch (tensor.type) {
+    case kTfLiteInt8: {
+      return DecompressToBuffer<int8_t>(static_cast<uint8_t*>(tensor.data.data),
+                                        count, scratch_buffer,
+                                        compression_data);
+    } break;
+    case kTfLiteInt16: {
+      return DecompressToBuffer<int16_t>(
+          static_cast<uint8_t*>(tensor.data.data), count, scratch_buffer,
+          compression_data);
+    } break;
+    case kTfLiteInt32: {
+      return DecompressToBuffer<int32_t>(
+          static_cast<uint8_t*>(tensor.data.data), count, scratch_buffer,
+          compression_data);
+    } break;
+    case kTfLiteInt64: {
+      return DecompressToBuffer<int64_t>(
+          static_cast<uint8_t*>(tensor.data.data), count, scratch_buffer,
+          compression_data);
+    } break;
+    case kTfLiteFloat32: {
+      return DecompressToBuffer<float>(static_cast<uint8_t*>(tensor.data.data),
+                                       count, scratch_buffer, compression_data);
+    } break;
+    default: {
+      MicroPrintf("Unsupported decompression tensor type %d", tensor.type);
+    } break;
+  }
+
+  return nullptr;
+}
 
 }  // namespace tflite

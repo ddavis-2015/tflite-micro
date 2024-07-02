@@ -1,4 +1,4 @@
-/* Copyright 2023 The TensorFlow Authors. All Rights Reserved.
+/* Copyright 2024 The TensorFlow Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -104,6 +104,33 @@ void MicroInterpreterContext::SetInterpreterState(InterpreterState state) {
 MicroInterpreterContext::InterpreterState
 MicroInterpreterContext::GetInterpreterState() const {
   return state_;
+}
+
+bool MicroInterpreterContext::IsTensorCompressed(const TfLiteNode* node,
+                                                 int tensor_idx) {
+  return false;
+}
+
+// Only available during Prepare. The kernel is responsible for storing the
+// scratch buffer handle.
+int MicroInterpreterContext::AllocateDecompressionScratchBuffer(
+    const TfLiteNode* node, int tensor_idx) {
+  return -1;
+}
+
+// Available during Prepare & Eval. Returns nullptr if tensor is not
+// compressed.
+const MicroContext::CompressionTensorData*
+MicroInterpreterContext::GetTensorCompressionData(const TfLiteNode* node,
+                                                  int tensor_idx) {
+  return nullptr;
+}
+
+void* MicroInterpreterContext::DecompressTensorToScratchBuffer(
+    const TfLiteEvalTensor& tensor,
+    const CompressionTensorData& compression_data, int scratch_buffer_handle) {
+  TFLITE_DCHECK(scratch_buffer_handle != -1);
+  return nullptr;
 }
 
 }  // namespace tflite

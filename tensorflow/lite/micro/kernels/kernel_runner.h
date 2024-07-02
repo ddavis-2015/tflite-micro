@@ -1,4 +1,4 @@
-/* Copyright 2020 The TensorFlow Authors. All Rights Reserved.
+/* Copyright 2024 The TensorFlow Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -33,10 +33,11 @@ namespace micro {
 // output provided during construction.
 class KernelRunner {
  public:
-  KernelRunner(const TFLMRegistration& registration, TfLiteTensor* tensors,
-               int tensors_size, TfLiteIntArray* inputs,
-               TfLiteIntArray* outputs, const void* builtin_data,
-               TfLiteIntArray* intermediates = nullptr);
+  KernelRunner(
+      const TFLMRegistration& registration, TfLiteTensor* tensors,
+      int tensors_size, TfLiteIntArray* inputs, TfLiteIntArray* outputs,
+      const void* builtin_data, TfLiteIntArray* intermediates = nullptr,
+      const MicroContext::CompressedTensorList* compressed_tensors = nullptr);
 
   // Calls init and prepare on the kernel (i.e. TFLMRegistration) struct.
   // Any exceptions will be DebugLog'd and returned as a status code.

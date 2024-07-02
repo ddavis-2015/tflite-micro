@@ -1,4 +1,4 @@
-/* Copyright 2021 The TensorFlow Authors. All Rights Reserved.
+/* Copyright 2024 The TensorFlow Authors. All Rights Reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -94,6 +94,56 @@ class MicroContext {
   virtual void* external_context() = 0;
 
   virtual MicroGraph& graph() = 0;
+
+  //
+  // Compressed tensors
+  //
+
+  enum class CompressionScheme : uint8_t {
+    kBinQuant,
+  };
+
+  struct BinQuantData {
+    const void* value_table;            // Pointer into FlatBuffer Values.
+    uint8_t compressed_bit_width : 3;   // 1 to 7 bits
+    bool is_per_channel_quantized : 1;  // tensor is per-channel quantized
+    bool use_alternate_axis : 1;        // shape default channel axis is 0,
+                                        // alternate is 3
+    uint8_t reserved : 3;
+  };
+
+  union CompressionData {
+    BinQuantData bin_quant;
+  };
+
+  struct CompressionTensorData {
+    CompressionScheme scheme;
+    CompressionData data;
+  };
+
+  struct CompressedTensorList {
+    // Sparsely populated array with the same number of tensors in the Subgraph.
+    // An alternative would include a tensor index in the struct for each and
+    // walk the list on look up. This could be slow.
+    CompressionTensorData** tensors;
+  };
+
+  virtual bool IsTensorCompressed(const TfLiteNode* node, int tensor_idx) = 0;
+
+  // Only available during Prepare. The kernel is responsible for storing the
+  // scratch buffer handle.
+  virtual int AllocateDecompressionScratchBuffer(const TfLiteNode* node,
+                                                 int tensor_idx) = 0;
+
+  // Available during Prepare & Eval. Returns nullptr if tensor is not
+  // compressed.
+  virtual const CompressionTensorData* GetTensorCompressionData(
+      const TfLiteNode* node, int tensor_idx) = 0;
+
+  virtual void* DecompressTensorToScratchBuffer(
+      const TfLiteEvalTensor& tensor,
+      const CompressionTensorData& compression_data,
+      int scratch_buffer_handle) = 0;
 
  private:
   TF_LITE_REMOVE_VIRTUAL_DELETE
