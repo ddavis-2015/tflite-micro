@@ -41,7 +41,7 @@ limitations under the License.
 #include <algorithm>
 #include <cstring>
 
-#include "tensorflow/lite/micro/compression/metadata_generated.h"
+#include "tensorflow/lite/micro/compression/metadata_saved.h"
 
 #endif  // USE_TFLM_COMPRESSION
 
