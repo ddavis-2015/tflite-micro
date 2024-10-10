@@ -74,7 +74,6 @@ constexpr int kKeywordModelOnlyTotalSize = 14936;
 // TODO(b/207157610): replace magic number that depends on OPs
 constexpr int kKeywordModelOnlyTailSize = 14264;
 constexpr int kKeywordModelPersistentTfLiteTensorDataSize = 224;
-constexpr int kKeywordModelPersistentBufferDataSize = 840;
 #endif
 constexpr int kKeywordModelHeadSize = 672;
 constexpr int kKeywordModelTfLiteTensorVariableBufferDataSize = 10240;
@@ -86,6 +85,15 @@ uint8_t test_conv_tensor_arena[kTestConvModelArenaSize];
 
 constexpr int kTestConvModelTensorCount = 15;
 constexpr int kTestConvModelNodeAndRegistrationCount = 7;
+
+constexpr int kKeywordModelPersistentBufferDataSize =
+#if defined(TF_LITE_STATIC_MEMORY)
+  832;
+#elif defined(USE_TFLM_COMPRESSION)
+  920;
+#else
+  840;
+#endif
 
 // NOTE: These values are measured on x86-64:
 // TODO(b/158651472): Consider auditing these values on non-64 bit systems.
