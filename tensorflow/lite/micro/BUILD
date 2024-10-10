@@ -165,6 +165,7 @@ tflm_cc_library(
 tflm_cc_library(
     name = "micro_allocator",
     srcs = [
+        "compression.h",
         "micro_allocation_info.cc",
         "micro_allocator.cc",
     ],
@@ -185,6 +186,7 @@ tflm_cc_library(
         "//tensorflow/lite/micro/arena_allocator:non_persistent_arena_buffer_allocator",
         "//tensorflow/lite/micro/arena_allocator:persistent_arena_buffer_allocator",
         "//tensorflow/lite/micro/arena_allocator:simple_memory_allocator",
+        "//tensorflow/lite/micro/compression:metadata_saved",
         "//tensorflow/lite/micro/memory_planner:greedy_memory_planner",
         "//tensorflow/lite/micro/memory_planner:linear_memory_planner",
         "//tensorflow/lite/micro/memory_planner:micro_memory_planner",
