@@ -1,7 +1,10 @@
 load("@bazel_skylib//:bzl_library.bzl", "bzl_library")
 load(
     "//tensorflow/lite/micro:build_def.bzl",
-    "micro_copts",
+    "tflm_cc_binary",
+    "tflm_cc_library",
+    "tflm_cc_test",
+    "tflm_copts",
 )
 
 package(
@@ -18,15 +21,14 @@ package_group(
     packages = ["//tensorflow/lite/micro/..."],
 )
 
-cc_library(
+tflm_cc_library(
     name = "micro_compatibility",
     hdrs = [
         "compatibility.h",
     ],
-    copts = micro_copts(),
 )
 
-cc_library(
+tflm_cc_library(
     # TODO(b/187093492): Rename to micro_interpreter.
     name = "micro_framework",
     srcs = [
@@ -35,7 +37,6 @@ cc_library(
     hdrs = [
         "micro_interpreter.h",
     ],
-    copts = micro_copts(),
     deps = [
         ":memory_helpers",
         ":micro_allocator",
@@ -53,7 +54,7 @@ cc_library(
     ],
 )
 
-cc_library(
+tflm_cc_library(
     name = "micro_context",
     srcs = [
         "micro_context.cc",
@@ -61,7 +62,6 @@ cc_library(
     hdrs = [
         "micro_context.h",
     ],
-    copts = micro_copts(),
     deps = [
         ":micro_common",
         ":micro_graph",
@@ -72,7 +72,7 @@ cc_library(
     ],
 )
 
-cc_library(
+tflm_cc_library(
     name = "micro_interpreter_context",
     srcs = [
         "micro_interpreter_context.cc",
@@ -80,7 +80,6 @@ cc_library(
     hdrs = [
         "micro_interpreter_context.h",
     ],
-    copts = micro_copts(),
     deps = [
         ":memory_helpers",
         ":micro_allocator",
@@ -92,18 +91,17 @@ cc_library(
     ],
 )
 
-cc_library(
+tflm_cc_library(
     name = "micro_common",
     hdrs = [
         "micro_common.h",
     ],
-    copts = micro_copts(),
     deps = [
         "//tensorflow/lite/c:common",
     ],
 )
 
-cc_library(
+tflm_cc_library(
     name = "fake_micro_context",
     srcs = [
         "fake_micro_context.cc",
@@ -111,7 +109,6 @@ cc_library(
     hdrs = [
         "fake_micro_context.h",
     ],
-    copts = micro_copts(),
     deps = [
         ":memory_helpers",
         ":micro_arena_constants",
@@ -123,10 +120,9 @@ cc_library(
     ],
 )
 
-cc_library(
+tflm_cc_library(
     name = "micro_graph",
     hdrs = ["micro_graph.h"],
-    copts = micro_copts(),
     deps = [
         ":micro_common",
         ":micro_resource_variable",
@@ -134,11 +130,10 @@ cc_library(
     ],
 )
 
-cc_library(
+tflm_cc_library(
     name = "micro_interpreter_graph",
     srcs = ["micro_interpreter_graph.cc"],
     hdrs = ["micro_interpreter_graph.h"],
-    copts = micro_copts(),
     deps = [
         ":memory_helpers",
         ":micro_allocator",
@@ -154,11 +149,10 @@ cc_library(
     ],
 )
 
-cc_library(
+tflm_cc_library(
     name = "mock_micro_graph",
     srcs = ["mock_micro_graph.cc"],
     hdrs = ["mock_micro_graph.h"],
-    copts = micro_copts(),
     deps = [
         ":micro_allocator",
         ":micro_graph",
@@ -168,7 +162,7 @@ cc_library(
     ],
 )
 
-cc_library(
+tflm_cc_library(
     name = "micro_allocator",
     srcs = [
         "micro_allocation_info.cc",
@@ -178,7 +172,6 @@ cc_library(
         "micro_allocation_info.h",
         "micro_allocator.h",
     ],
-    copts = micro_copts(),
     deps = [
         ":flatbuffer_utils",
         ":memory_helpers",
@@ -202,20 +195,18 @@ cc_library(
     ],
 )
 
-cc_library(
+tflm_cc_library(
     name = "micro_arena_constants",
     hdrs = [
         "micro_arena_constants.h",
     ],
-    copts = micro_copts(),
     deps = [],
 )
 
-cc_library(
+tflm_cc_library(
     name = "flatbuffer_utils",
     srcs = ["flatbuffer_utils.cc"],
     hdrs = ["flatbuffer_utils.h"],
-    copts = micro_copts(),
     deps = [
         "//tensorflow/lite/c:common",
         "//tensorflow/lite/schema:schema_fbs",
@@ -223,11 +214,10 @@ cc_library(
     ],
 )
 
-cc_library(
+tflm_cc_library(
     name = "memory_helpers",
     srcs = ["memory_helpers.cc"],
     hdrs = ["memory_helpers.h"],
-    copts = micro_copts(),
     deps = [
         "//tensorflow/lite/c:common",
         "//tensorflow/lite/kernels/internal:reference",
@@ -237,7 +227,7 @@ cc_library(
     ],
 )
 
-cc_library(
+tflm_cc_library(
     name = "test_helpers",
     srcs = [
         "test_helper_custom_ops.cc",
@@ -247,7 +237,6 @@ cc_library(
         "test_helper_custom_ops.h",
         "test_helpers.h",
     ],
-    copts = micro_copts(),
     deps = [
         ":memory_helpers",
         ":micro_utils",
@@ -262,7 +251,7 @@ cc_library(
     ],
 )
 
-cc_library(
+tflm_cc_library(
     name = "op_resolvers",
     srcs = [
         "micro_op_resolver.cc",
@@ -271,7 +260,6 @@ cc_library(
         "micro_mutable_op_resolver.h",
         "micro_op_resolver.h",
     ],
-    copts = micro_copts(),
     deps = [
         ":micro_compatibility",
         ":micro_log",
@@ -285,7 +273,7 @@ cc_library(
     ],
 )
 
-cc_library(
+tflm_cc_library(
     name = "debug_log",
     srcs = [
         "debug_log.cc",
@@ -293,10 +281,9 @@ cc_library(
     hdrs = [
         "debug_log.h",
     ],
-    copts = micro_copts(),
 )
 
-cc_library(
+tflm_cc_library(
     name = "micro_log",
     srcs = [
         "micro_log.cc",
@@ -304,13 +291,12 @@ cc_library(
     hdrs = [
         "micro_log.h",
     ],
-    copts = micro_copts(),
     deps = [
         ":debug_log",
     ],
 )
 
-cc_library(
+tflm_cc_library(
     name = "micro_resource_variable",
     srcs = [
         "micro_resource_variable.cc",
@@ -318,7 +304,6 @@ cc_library(
     hdrs = [
         "micro_resource_variable.h",
     ],
-    copts = micro_copts(),
     deps = [
         ":micro_allocator",
         ":micro_log",
@@ -328,7 +313,7 @@ cc_library(
     ],
 )
 
-cc_library(
+tflm_cc_library(
     name = "micro_time",
     srcs = [
         "micro_time.cc",
@@ -336,19 +321,18 @@ cc_library(
     hdrs = [
         "micro_time.h",
     ],
-    copts = micro_copts() + ["-DTF_LITE_USE_CTIME"],
+    copts = tflm_copts() + ["-DTF_LITE_USE_CTIME"],
     deps = ["//tensorflow/lite/c:common"],
 )
 
-cc_library(
+tflm_cc_library(
     name = "micro_profiler_interface",
     hdrs = [
         "micro_profiler_interface.h",
     ],
-    copts = micro_copts(),
 )
 
-cc_library(
+tflm_cc_library(
     name = "micro_profiler",
     srcs = [
         "micro_profiler.cc",
@@ -356,7 +340,6 @@ cc_library(
     hdrs = [
         "micro_profiler.h",
     ],
-    copts = micro_copts(),
     deps = [
         ":micro_compatibility",
         ":micro_log",
@@ -366,7 +349,7 @@ cc_library(
     ],
 )
 
-cc_library(
+tflm_cc_library(
     name = "micro_utils",
     srcs = [
         "micro_utils.cc",
@@ -374,7 +357,6 @@ cc_library(
     hdrs = [
         "micro_utils.h",
     ],
-    copts = micro_copts(),
     deps = [
         ":memory_helpers",
         ":micro_log",
@@ -383,7 +365,7 @@ cc_library(
     ],
 )
 
-cc_library(
+tflm_cc_library(
     name = "hexdump",
     srcs = [
         "hexdump.cc",
@@ -397,7 +379,7 @@ cc_library(
     ],
 )
 
-cc_library(
+tflm_cc_library(
     name = "recording_allocators",
     srcs = [
         "recording_micro_allocator.cc",
@@ -406,7 +388,6 @@ cc_library(
         "recording_micro_allocator.h",
         "recording_micro_interpreter.h",
     ],
-    copts = micro_copts(),
     deps = [
         ":micro_allocator",
         ":micro_compatibility",
@@ -417,22 +398,20 @@ cc_library(
     ],
 )
 
-cc_library(
+tflm_cc_library(
     name = "span",
     hdrs = ["span.h"],
-    copts = micro_copts(),
 )
 
-cc_library(
+tflm_cc_library(
     name = "static_vector",
     hdrs = ["static_vector.h"],
-    copts = micro_copts(),
     deps = [
         "//tensorflow/lite/kernels:op_macros",
     ],
 )
 
-cc_library(
+tflm_cc_library(
     name = "system_setup",
     srcs = [
         "system_setup.cc",
@@ -440,7 +419,6 @@ cc_library(
     hdrs = [
         "system_setup.h",
     ],
-    copts = micro_copts(),
 )
 
 cc_test(

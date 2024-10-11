@@ -1,6 +1,5 @@
-load(
-    "//tensorflow/lite/micro:build_def.bzl",
-    "micro_copts",
+load("//tensorflow/lite/micro:build_def.bzl",
+    "tflm_cc_library",
 )
 
 package(
@@ -10,22 +9,20 @@ package(
     licenses = ["notice"],
 )
 
-cc_library(
+tflm_cc_library(
     name = "ibuffer_allocator",
     hdrs = [
         "ibuffer_allocator.h",
     ],
-    copts = micro_copts(),
     deps = [
         "//tensorflow/lite/c:common",
     ],
 )
 
-cc_library(
+tflm_cc_library(
     name = "non_persistent_arena_buffer_allocator",
     srcs = ["non_persistent_arena_buffer_allocator.cc"],
     hdrs = ["non_persistent_arena_buffer_allocator.h"],
-    copts = micro_copts(),
     deps = [
         ":ibuffer_allocator",
         "//tensorflow/lite/c:common",
@@ -46,11 +43,10 @@ cc_test(
     ],
 )
 
-cc_library(
+tflm_cc_library(
     name = "persistent_arena_buffer_allocator",
     srcs = ["persistent_arena_buffer_allocator.cc"],
     hdrs = ["persistent_arena_buffer_allocator.h"],
-    copts = micro_copts(),
     deps = [
         ":ibuffer_allocator",
         "//tensorflow/lite/c:common",
@@ -71,7 +67,7 @@ cc_test(
     ],
 )
 
-cc_library(
+tflm_cc_library(
     name = "simple_memory_allocator",
     srcs = [
         "single_arena_buffer_allocator.cc",
@@ -79,7 +75,6 @@ cc_library(
     hdrs = [
         "single_arena_buffer_allocator.h",
     ],
-    copts = micro_copts(),
     deps = [
         ":ibuffer_allocator",
         "//tensorflow/lite/c:common",
@@ -102,7 +97,7 @@ cc_test(
     ],
 )
 
-cc_library(
+tflm_cc_library(
     name = "recording_simple_memory_allocator",
     srcs = [
         "recording_single_arena_buffer_allocator.cc",
@@ -110,7 +105,6 @@ cc_library(
     hdrs = [
         "recording_single_arena_buffer_allocator.h",
     ],
-    copts = micro_copts(),
     deps = [
         ":simple_memory_allocator",
         "//tensorflow/lite/kernels/internal:compatibility",
