@@ -12,21 +12,30 @@ def tflm_copts():
         "-DFLATBUFFERS_LOCALE_INDEPENDENT=0",
     ]
 
-def tflm_cc_binary(copts = tflm_copts(), **kwargs):
+def tflm_defines():
+    return select({
+        "//:with_compression_enabled": ["USE_TFLM_COMPRESSION=1"],
+        "//conditions:default": [],
+    })
+
+def tflm_cc_binary(copts = tflm_copts(), defines = tflm_defines(), **kwargs):
     native.cc_binary(
         copts = copts,
+        defines = defines,
         **kwargs
     )
 
-def tflm_cc_library(copts = tflm_copts(), **kwargs):
+def tflm_cc_library(copts = tflm_copts(), defines = tflm_defines(), **kwargs):
     native.cc_library(
         copts = copts,
+        defines = defines,
         **kwargs
     )
 
-def tflm_cc_test(copts = tflm_copts(), **kwargs):
+def tflm_cc_test(copts = tflm_copts(), defines = tflm_defines(), **kwargs):
     native.cc_test(
         copts = copts,
+        defines = defines,
         **kwargs
     )
 
