@@ -421,7 +421,7 @@ tflm_cc_library(
     ],
 )
 
-cc_test(
+tflm_cc_test(
     name = "micro_log_test",
     srcs = [
         "micro_log_test.cc",
@@ -433,7 +433,7 @@ cc_test(
     ],
 )
 
-cc_test(
+tflm_cc_test(
     name = "micro_mutable_op_resolver_test",
     srcs = [
         "micro_mutable_op_resolver_test.cc",
@@ -445,7 +445,7 @@ cc_test(
     ],
 )
 
-cc_test(
+tflm_cc_test(
     name = "micro_interpreter_context_test",
     srcs = [
         "micro_interpreter_context_test.cc",
@@ -459,7 +459,7 @@ cc_test(
     ],
 )
 
-cc_test(
+tflm_cc_test(
     name = "fake_micro_context_test",
     srcs = [
         "fake_micro_context_test.cc",
@@ -473,7 +473,7 @@ cc_test(
     ],
 )
 
-cc_test(
+tflm_cc_test(
     name = "micro_interpreter_test",
     srcs = [
         "micro_interpreter_test.cc",
@@ -490,7 +490,7 @@ cc_test(
     ],
 )
 
-cc_test(
+tflm_cc_test(
     name = "micro_allocator_test",
     srcs = [
         "micro_allocator_test.cc",
@@ -508,7 +508,7 @@ cc_test(
     ],
 )
 
-cc_test(
+tflm_cc_test(
     name = "micro_allocation_info_test",
     srcs = [
         "micro_allocation_info_test.cc",
@@ -520,7 +520,7 @@ cc_test(
     ],
 )
 
-cc_test(
+tflm_cc_test(
     name = "recording_micro_allocator_test",
     srcs = [
         "recording_micro_allocator_test.cc",
@@ -535,7 +535,7 @@ cc_test(
     ],
 )
 
-cc_test(
+tflm_cc_test(
     name = "flatbuffer_utils_test",
     srcs = [
         "flatbuffer_utils_test.cc",
@@ -550,7 +550,7 @@ cc_test(
     ],
 )
 
-cc_test(
+tflm_cc_test(
     name = "hexdump_test",
     size = "small",
     srcs = [
@@ -562,7 +562,7 @@ cc_test(
     ],
 )
 
-cc_test(
+tflm_cc_test(
     name = "memory_helpers_test",
     srcs = [
         "memory_helpers_test.cc",
@@ -574,7 +574,7 @@ cc_test(
     ],
 )
 
-cc_test(
+tflm_cc_test(
     name = "span_test",
     size = "small",
     srcs = [
@@ -586,7 +586,7 @@ cc_test(
     ],
 )
 
-cc_test(
+tflm_cc_test(
     name = "testing_helpers_test",
     srcs = [
         "testing_helpers_test.cc",
@@ -598,7 +598,7 @@ cc_test(
     ],
 )
 
-cc_test(
+tflm_cc_test(
     name = "micro_utils_test",
     srcs = [
         "micro_utils_test.cc",
@@ -609,7 +609,7 @@ cc_test(
     ],
 )
 
-cc_test(
+tflm_cc_test(
     name = "micro_time_test",
     srcs = [
         "micro_time_test.cc",
@@ -620,7 +620,7 @@ cc_test(
     ],
 )
 
-cc_test(
+tflm_cc_test(
     name = "micro_resource_variable_test",
     srcs = ["micro_resource_variable_test.cc"],
     deps = [
@@ -629,7 +629,7 @@ cc_test(
     ],
 )
 
-cc_test(
+tflm_cc_test(
     name = "memory_arena_threshold_test",
     srcs = [
         "memory_arena_threshold_test.cc",
@@ -643,7 +643,7 @@ cc_test(
     ],
 )
 
-cc_test(
+tflm_cc_test(
     name = "static_vector_test",
     size = "small",
     srcs = [
