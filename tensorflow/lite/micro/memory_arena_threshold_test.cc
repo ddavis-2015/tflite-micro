@@ -63,7 +63,6 @@ constexpr int kKeywordModelOnlyTotalSize = 14472;
 // TODO(b/207157610): replace magic number that depends on OPs
 constexpr int kKeywordModelOnlyTailSize = 13800;
 constexpr int kKeywordModelPersistentTfLiteTensorDataSize = 128;
-constexpr int kKeywordModelPersistentBufferDataSize = 832;
 #else
 // Total size contributed by the keyword model excluding the
 // RecordingMicroAllocator's overhead.
@@ -87,9 +86,7 @@ constexpr int kTestConvModelTensorCount = 15;
 constexpr int kTestConvModelNodeAndRegistrationCount = 7;
 
 constexpr int kKeywordModelPersistentBufferDataSize =
-#if defined(TF_LITE_STATIC_MEMORY)
-  832;
-#elif defined(USE_TFLM_COMPRESSION)
+#if defined(USE_TFLM_COMPRESSION)
   920;
 #else
   840;
