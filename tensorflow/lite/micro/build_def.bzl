@@ -6,6 +6,7 @@ def tflm_copts():
     be useful when additively overriding the defaults for a particular target.
     """
     return [
+        "-fno-exceptions",
         "-Wall",
         "-Wno-unused-parameter",
         "-Wnon-virtual-dtor",
@@ -13,7 +14,9 @@ def tflm_copts():
     ]
 
 def tflm_defines():
-    return select({
+    return [
+        "TF_LITE_STATIC_MEMORY=1",
+    ] + select({
         "//:with_compression_enabled": ["USE_TFLM_COMPRESSION=1"],
         "//conditions:default": [],
     })
