@@ -4,6 +4,7 @@ load("@rules_python//python:defs.bzl", "py_binary", "py_test")
 load("@tflm_pip_deps//:requirements.bzl", "requirement")
 load(
     "//tensorflow/lite/micro:build_def.bzl",
+    "INCOMPATIBLE_WITH_WINDOWS",
     "generate_cc_arrays",
     "tflm_cc_library",
     "tflm_cc_test",
@@ -207,6 +208,7 @@ py_binary(
     data = [
         ":samples_30ms",
     ],
+    target_compatible_with = INCOMPATIBLE_WITH_WINDOWS,
     deps = [
         requirement("absl_py"),
         requirement("numpy"),
@@ -223,6 +225,7 @@ py_binary(
     data = [
         ":models_tflite",
     ],
+    target_compatible_with = INCOMPATIBLE_WITH_WINDOWS,
     deps = [
         ":audio_preprocessor",
     ],
@@ -241,6 +244,7 @@ py_test(
         "nomsan",  # Python doesn't like these symbols
         "noubsan",
     ],
+    target_compatible_with = INCOMPATIBLE_WITH_WINDOWS,
     deps = [
         ":evaluate",
     ],
@@ -259,6 +263,7 @@ py_test(
         "nomsan",  # Python doesn't like these symbols
         "noubsan",
     ],
+    target_compatible_with = INCOMPATIBLE_WITH_WINDOWS,
     deps = [
         ":audio_preprocessor",
     ],

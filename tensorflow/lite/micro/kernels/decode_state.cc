@@ -15,7 +15,9 @@ limitations under the License.
 
 #include "tensorflow/lite/micro/kernels/decode_state.h"
 
+#include "tensorflow/lite/micro/kernels/decode_state_huffman.h"
 #include "tensorflow/lite/micro/kernels/decode_state_lut.h"
+#include "tensorflow/lite/micro/kernels/decode_state_prune.h"
 #include "tensorflow/lite/micro/micro_context.h"
 
 namespace tflite {
@@ -29,6 +31,32 @@ DecodeState* DecodeState::CreateDecodeStateLUT(
     return nullptr;
   }
   DecodeState* dsp = new (buffer) DecodeStateLut(context, profiler);
+
+  return dsp;
+}
+
+DecodeState* DecodeState::CreateDecodeStatePrune(
+    const TfLiteContext* context, MicroProfilerInterface* profiler) {
+  MicroContext* const micro_context = GetMicroContext(context);
+  void* buffer =
+      micro_context->AllocatePersistentBuffer(sizeof(DecodeStatePrune));
+  if (buffer == nullptr) {
+    return nullptr;
+  }
+  DecodeState* dsp = new (buffer) DecodeStatePrune(context, profiler);
+
+  return dsp;
+}
+
+DecodeState* DecodeState::CreateDecodeStateHuffman(
+    const TfLiteContext* context, MicroProfilerInterface* profiler) {
+  MicroContext* const micro_context = GetMicroContext(context);
+  void* buffer =
+      micro_context->AllocatePersistentBuffer(sizeof(DecodeStateHuffman));
+  if (buffer == nullptr) {
+    return nullptr;
+  }
+  DecodeState* dsp = new (buffer) DecodeStateHuffman(context, profiler);
 
   return dsp;
 }

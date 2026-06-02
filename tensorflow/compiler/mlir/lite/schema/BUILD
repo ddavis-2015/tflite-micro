@@ -33,10 +33,14 @@ flatbuffer_cc_library(
 cc_library(
     name = "schema_utils",
     srcs = ["schema_utils.cc"],
-    hdrs = ["schema_utils.h"],
+    hdrs = [
+        "schema_generated.h",
+        "schema_utils.h",
+    ],
     deps = [
         ":schema_fbs",
         "//tensorflow/compiler/mlir/lite/kernels/internal:compatibility_macros",
+        "//tensorflow/lite/schema:schema_fbs",
         "@flatbuffers//:runtime_cc",
     ],
 )

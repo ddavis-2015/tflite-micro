@@ -47,6 +47,7 @@ PythonOpsResolver::PythonOpsResolver() {
   AddDequantize();
   AddDetectionPostprocess();
   AddDiv();
+  AddDynamicUpdateSlice();
   AddElu();
   AddEmbeddingLookup();
   AddEnergy();
@@ -99,6 +100,7 @@ PythonOpsResolver::PythonOpsResolver() {
   AddPrelu();
   AddQuantize();
   AddReadVariable();
+  AddReduceAll();
   AddReduceMax();
   AddReduceMin();
   AddRelu();

@@ -125,6 +125,9 @@ class MicroInterpreter {
   // Returns a pointer to the tensor for the corresponding tensor_index
   TfLiteEvalTensor* GetTensor(int tensor_index, int subgraph_index = 0);
 
+  // Zeros out a single variable tensor in a specified subgraph in the model.
+  TfLiteStatus ResetVariableTensor(int tensor_index, int subgraph_index = 0);
+
   // Reset the state to be what you would expect when the interpreter is first
   // created. i.e. after Init and Prepare is called for the very first time.
   TfLiteStatus Reset();
@@ -160,16 +163,16 @@ class MicroInterpreter {
   // decompression subsystem.
   TfLiteStatus SetAlternateProfiler(MicroProfilerInterface* alt_profiler);
 
-#ifdef USE_TFLM_COMPRESSION
-
   // Set the alternate decompression memory regions.
   // Can only be called during the MicroInterpreter kInit state (i.e. must
   // be called before MicroInterpreter::AllocateTensors).
+  // The regions pointer argument is the start of a
+  // MicroContext::AlternateMemoryRegion array where the length of the array is
+  // given by the count argument.
+  // The lifetime of the MicroContext::AlternateMemoryRegion array must be at
+  // least that of the MicroInterpreter.
   TfLiteStatus SetDecompressionMemory(
-      const std::initializer_list<MicroContext::AlternateMemoryRegion>&
-          regions);
-
-#endif  // USE_TFLM_COMPRESSION
+      const MicroContext::AlternateMemoryRegion* regions, size_t count);
 
  protected:
   const MicroAllocator& allocator() const { return allocator_; }

@@ -11,6 +11,7 @@ load(
 )
 load(
     "//tensorflow/lite/micro:build_def.bzl",
+    "INCOMPATIBLE_WITH_WINDOWS",
     "tflm_cc_library",
 )
 load("//tools:expand_stamp_vars.bzl", "expand_stamp_vars")
@@ -60,6 +61,7 @@ pybind_extension(
         "python_utils.h",
         "shared_library.h",
     ],
+    target_compatible_with = INCOMPATIBLE_WITH_WINDOWS,
     deps = [
         ":python_ops_resolver",
         "//tensorflow/lite/micro:micro_framework",
@@ -75,6 +77,7 @@ py_library(
         "runtime.py",
     ],
     data = [":_runtime.so"],
+    target_compatible_with = INCOMPATIBLE_WITH_WINDOWS,
     visibility = ["//visibility:public"],
     deps = [
         requirement("numpy"),
@@ -91,6 +94,7 @@ py_test(
         "nomsan",  # Python doesn't like these symbols in _runtime.so
         "noubsan",
     ],
+    target_compatible_with = INCOMPATIBLE_WITH_WINDOWS,
     deps = [
         ":runtime",
         requirement("numpy"),
@@ -110,6 +114,7 @@ py_test(
     ],
     # Only compatible when compression is NOT enabled
     target_compatible_with = select({
+        "@platforms//os:windows": ["@platforms//:incompatible"],
         "//:with_compression_enabled": ["@platforms//:incompatible"],
         "//conditions:default": [],
     }),
@@ -306,4 +311,5 @@ sh_test(
         "notap",  # See http://b/294278650#comment4 for more details.
         "noubsan",
     ],
+    target_compatible_with = INCOMPATIBLE_WITH_WINDOWS,
 )

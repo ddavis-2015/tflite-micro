@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # Copyright 2024 The TensorFlow Authors. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -97,7 +97,7 @@ create_git_repo() {
 function apply_patch_to_folder() {
   pushd ${1} > /dev/null
   echo >&2 "Applying ${PWD}/${1}/${2} to ${PWD}/${1}"
-  git apply ${2}
+  git apply --ignore-space-change --ignore-whitespace ${2}
   git commit -a -m "${3}" > /dev/null
   popd > /dev/null
 }

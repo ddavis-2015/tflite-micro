@@ -4,6 +4,11 @@ load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_test.bzl", "cc_test")
 
+INCOMPATIBLE_WITH_WINDOWS = select({
+    "@platforms//os:windows": ["@platforms//:incompatible"],
+    "//conditions:default": [],
+})
+
 def tflm_copts():
     """Returns the default copts for targets in TFLM.
 
@@ -11,14 +16,20 @@ def tflm_copts():
     It is typically unnecessary to use this function directly; however, it may
     be useful when additively overriding the defaults for a particular target.
     """
-    return [
-        "-fno-asynchronous-unwind-tables",
-        "-fno-exceptions",
-        "-Wall",
-        "-Wno-unused-parameter",
-        "-Wnon-virtual-dtor",
-        "-DFLATBUFFERS_LOCALE_INDEPENDENT=0",
-    ]
+    return select({
+        "@platforms//os:windows": [
+            "/GR-",
+            "/DFLATBUFFERS_LOCALE_INDEPENDENT=0",
+        ],
+        "//conditions:default": [
+            "-fno-asynchronous-unwind-tables",
+            "-fno-exceptions",
+            "-Wall",
+            "-Wno-unused-parameter",
+            "-Wnon-virtual-dtor",
+            "-DFLATBUFFERS_LOCALE_INDEPENDENT=0",
+        ],
+    })
 
 def micro_copts():
     """A deprecated alias for tflm_copts, kept for out-of-tree users.

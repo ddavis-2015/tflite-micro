@@ -1,0 +1,67 @@
+name: Test - Misc (Style, Project Gen)
+
+on:
+  workflow_call:
+    inputs:
+      trigger-sha:
+        required: true
+        type: string
+
+jobs:
+  check_code_style:
+    runs-on: ubuntu-latest
+
+    name: Code Style
+    steps:
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.10'
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.trigger-sha }}
+      - name: Check
+        uses: docker://ghcr.io/tflm-bot/tflm-ci:0.6.5
+        with:
+          args: /bin/sh -c "git config --global --add safe.directory /github/workspace && tensorflow/lite/micro/tools/ci_build/test_code_style.sh"
+
+  cpp_build_warnings:
+    runs-on: ubuntu-latest
+
+    name: C++ Build Warnings
+    steps:
+      - uses: jlumbroso/free-disk-space@v1.3.1
+        with:
+          android: true
+          dotnet: true
+          haskell: true
+          docker-images: true
+          large-packages: false
+          tool-cache: false
+          swap-storage: false    
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.trigger-sha }}
+      - name: Build with Warnings as Errors
+        uses: docker://ghcr.io/tflm-bot/tflm-ci:0.6.5
+        with:
+          args: bazel build --copt="-Werror" //...
+
+  project_generation:
+    runs-on: ubuntu-latest
+
+    name: Project Generation
+    steps:
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.10'
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.trigger-sha }}
+      - name: Install dependencies
+        run: |
+          pip3 install Pillow
+          pip3 install numpy
+      - name: Test
+        run: |
+          cd ../
+          tflite-micro/tensorflow/lite/micro/tools/ci_build/test_project_generation.sh tflite-micro/
